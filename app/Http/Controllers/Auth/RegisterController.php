@@ -1,0 +1,52 @@
+<?php
+// app/Http/Controllers/Auth/RegisterController.php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Foundation\Auth\RegistersUsers;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+
+class RegisterController extends Controller
+{
+    use RegistersUsers;
+
+    protected $redirectTo = '/admin';
+
+    public function __construct()
+    {
+        $this->middleware('guest');
+    }
+
+    public function showRegistrationForm()
+    {
+        // Verificar se registro está habilitado
+        if (!config('auth.allow_registration', false)) {
+            abort(404);
+        }
+
+        return view('auth.register');
+    }
+
+    protected function validator(array $data)
+    {
+        return Validator::make($data, [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+    }
+
+    protected function create(array $data)
+    {
+        return User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+            'role' => 'operator', // Role padrão
+            'is_active' => false, // Requer aprovação de admin
+        ]);
+    }
+}

@@ -1,0 +1,118 @@
+<?php
+
+namespace App\Livewire\Admin\Filhos;
+
+use App\Models\Filho;
+use Livewire\Component;
+use Livewire\WithPagination;
+
+class FilhosList extends Component
+{
+    use WithPagination;
+    
+    // Filtros
+    public $search = '';
+    public $status = '';
+    public $orderBy = 'created_at';
+    public $orderDirection = 'desc';
+    public $perPage = 15;
+    
+    // Seleção múltipla
+    public $selectedFilhos = [];
+    public $selectAll = false;
+    
+    protected $queryString = [
+        'search' => ['except' => ''],
+        'status' => ['except' => ''],
+        'orderBy' => ['except' => 'created_at'],
+        'orderDirection' => ['except' => 'desc'],
+    ];
+    
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+    
+    public function updatingStatus()
+    {
+        $this->resetPage();
+    }
+    
+    public function sortBy($field)
+    {
+        if ($this->orderBy === $field) {
+            $this->orderDirection = $this->orderDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->orderBy = $field;
+            $this->orderDirection = 'asc';
+        }
+    }
+    
+    public function updatedSelectAll($value)
+    {
+        if ($value) {
+            $this->selectedFilhos = $this->filhos->pluck('id')->map(fn($id) => (string) $id)->toArray();
+        } else {
+            $this->selectedFilhos = [];
+        }
+    }
+    
+    public function bulkAction($action)
+    {
+        if (empty($this->selectedFilhos)) {
+            session()->flash('error', 'Nenhum filho selecionado.');
+            return;
+        }
+        
+        switch ($action) {
+            case 'activate':
+                Filho::whereIn('id', $this->selectedFilhos)->update(['status' => 'active']);
+                session()->flash('success', count($this->selectedFilhos) . ' filhos ativados.');
+                break;
+                
+            case 'block':
+                Filho::whereIn('id', $this->selectedFilhos)->update(['status' => 'blocked']);
+                session()->flash('success', count($this->selectedFilhos) . ' filhos bloqueados.');
+                break;
+                
+            case 'export':
+                return $this->exportSelected();
+        }
+        
+        $this->selectedFilhos = [];
+        $this->selectAll = false;
+    }
+    
+    public function exportSelected()
+    {
+        // Lógica de exportação Excel/PDF
+        return response()->download(/* ... */);
+    }
+    
+    public function getFilhosProperty()
+    {
+        return Filho::query()
+            ->with(['user'])
+            ->when($this->search, function ($query) {
+                $query->where(function ($q) {
+                    $q->where('name', 'like', '%' . $this->search . '%')
+                      ->orWhere('cpf', 'like', '%' . $this->search . '%')
+                      ->orWhereHas('user', function ($userQuery) {
+                          $userQuery->where('email', 'like', '%' . $this->search . '%');
+                      });
+                });
+            })
+            ->when($this->status, function ($query) {
+                $query->where('status', $this->status);
+            })
+            ->orderBy($this->orderBy, $this->orderDirection)
+            ->paginate($this->perPage);
+    }
+    
+    public function render()
+    {
+        return view('livewire.admin.filhos.filhos-list', [
+            'filhos' => $this->filhos,
+        ]);
+    }
+}
