@@ -31,14 +31,37 @@
         .gold-text { color: #D4AF37; }
         .bg-gold { background-color: #D4AF37; }
         
-        /* Hero Section Premium - Com Vida e Atmosfera */
+        
+        /* CORREÇÃO PARALLAX IPHONE (iOS Safari) */
         .hero-bg {
-            /* Imagem: Velas/Luz Espiritual desfocada para dar sensação de paz e oração */
-            background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.5)), url('/assets/images/umbanda-energia-que-cura.jpg'); 
+            position: relative;
+            height: 100vh;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        .hero-bg::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            /* Imagem estável de velas e luzes */
+            background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('assets/images/umbanda-energia-que-cura.jpg');
             background-size: cover;
             background-position: center;
-            background-attachment: fixed; /* Efeito Parallax Premium */
-            position: relative;
+            /* No desktop mantém fixed, no mobile usamos scroll para compatibilidade total */
+            background-attachment: fixed;
+            
+        }
+
+        /* Detecta se é um dispositivo touch/iOS para ajustar o parallax */
+        @media (pointer: coarse) {
+            .hero-bg::before {
+                background-attachment: scroll;
+            }
         }
 
         /* Botão Principal */
@@ -102,10 +125,9 @@
                 </a>
             </nav>
 
-            <button id="mobile-menu-btn" class="md:hidden text-gray-800 focus:outline-none p-2">
-                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-                </svg>
+            <button id="menu-toggle" class="md:hidden p-2" aria-label="Abrir Menu">
+                <svg id="icon-open" class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                <svg id="icon-close" class="w-8 h-8 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
 
@@ -120,6 +142,7 @@
                 </a>
             </nav>
         </div>
+
     </header>
 
     <section class="hero-bg h-screen flex items-center justify-center text-center px-4">
@@ -169,7 +192,7 @@
                     <div class="absolute -bottom-4 -right-4 w-24 h-24 border-b-4 border-r-4 border-[#D4AF37] opacity-0 group-hover:opacity-100 transition duration-500"></div>
                 </div>
                 <div class="md:w-1/2">
-                    <h2 class="text-4xl font-bold mb-6 text-gray-900 leading-tight">A Essência do <span class="gold-text">T.U.M.E.</span></h2>
+                    <h2 class="text-3xl font-bold mb-6 text-gray-900 leading-tight">A Essência do Templo <span class="gold-text">Mãos Estendidas</span></h2>
                     <p class="text-lg text-gray-600 mb-6 leading-relaxed">
                         No coração do Guarujá, o <strong>Templo de Umbanda Mãos Estendidas</strong> é mais do que um espaço físico; é um elo sagrado entre o plano material e a Aruanda.
                     </p>
@@ -261,7 +284,7 @@
     </section>
 
     <section class="py-24 bg-[#111] text-white text-center relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+        <div class="absolute top-0 left-0 w-full h-full bg-[url('')] opacity-20"></div>
         <div class="absolute top-10 left-10 w-48 h-48 bg-[#C8102E] rounded-full mix-blend-screen filter blur-[80px] opacity-20"></div>
         <div class="absolute bottom-10 right-10 w-64 h-64 bg-[#D4AF37] rounded-full mix-blend-screen filter blur-[80px] opacity-20"></div>
 
