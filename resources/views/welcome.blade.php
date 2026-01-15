@@ -108,8 +108,8 @@
             <a href="#" class="flex items-center gap-3 group">
                 <img src="{{ asset('assets/images/logotipo/logo.png') }}" alt="T.U.M.E" class="h-10 md:h-14 w-auto group-hover:opacity-80 transition">
                 <div class="flex flex-col">
-                    <span class="text-lg md:text-xl font-bold tracking-widest text-gray-900 leading-tight">T.U.M.E.</span>
-                    <span class="text-[10px] md:text-xs text-[#D4AF37] uppercase tracking-wider hidden md:block">Mãos Estendidas</span>
+                    <span class="text-lg md:text-xl font-bold tracking-widest text-gray-900 leading-tight">MÃOS ESTENDIDAS</span>
+                    <span class="text-[10px] md:text-xs text-[#D4AF37] uppercase tracking-wider hidden md:block">T.U.M.E.</span>
                 </div>
             </a>
 
@@ -136,9 +136,8 @@
                 <a href="#sobre" class="py-2 hover:text-[#C8102E] border-b border-gray-50 mobile-link">O Templo</a>
                 <a href="#lideranca" class="py-2 hover:text-[#C8102E] border-b border-gray-50 mobile-link">Liderança</a>
                 <a href="#atuacao" class="py-2 hover:text-[#C8102E] border-b border-gray-50 mobile-link">Obras & Cura</a>
-                <a href="#contato" class="py-2 hover:text-[#C8102E] mobile-link">Localização</a>
                 <a href="https://api.whatsapp.com/send/?phone=5513996218127" class="btn-primary text-white py-3 rounded-lg mt-2 shadow-md">
-                    Agendar no WhatsApp
+                    Nosso WhatsApp
                 </a>
             </nav>
         </div>
@@ -347,26 +346,33 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const btn = document.getElementById('mobile-menu-btn');
+           
+            const btn = document.getElementById('menu-toggle');
             const menu = document.getElementById('mobile-menu');
+            const iconOpen = document.getElementById('icon-open');
+            const iconClose = document.getElementById('icon-close');
             const links = document.querySelectorAll('.mobile-link');
 
-            // Toggle do Menu
-            btn.addEventListener('click', function() {
-                menu.classList.toggle('hidden');
-                // Pequeno timeout para permitir a transição CSS
-                setTimeout(() => {
-                    menu.classList.toggle('open');
-                }, 10);
-            });
+            function toggleMenu(e) {
+                
+                if (e && e.type === 'touchstart') e.preventDefault(); 
+                menu.classList.toggle('open');
+                // Alterna a visibilidade dos ícones
+                if (menu.classList.contains('open')) {
+                    iconOpen.classList.add('hidden');
+                    iconClose.classList.remove('hidden');
+                } else {
+                    iconOpen.classList.remove('hidden');
+                    iconClose.classList.add('hidden');
+                }
+            }
 
-            // Fechar menu ao clicar em um link
+            btn.addEventListener('click', toggleMenu);
             links.forEach(link => {
                 link.addEventListener('click', function() {
                     menu.classList.remove('open');
-                    setTimeout(() => {
-                        menu.classList.add('hidden');
-                    }, 300);
+                    iconOpen.classList.remove('hidden');
+                    iconClose.classList.add('hidden');
                 });
             });
         });
