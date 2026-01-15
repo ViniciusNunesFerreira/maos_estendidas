@@ -165,7 +165,7 @@
             
             <div class="flex flex-col md:flex-row gap-5 justify-center items-center">
                 <a href="#contato" class="btn-primary w-full md:w-auto text-white px-10 py-4 rounded-full font-bold uppercase tracking-wider text-sm shadow-[0_0_20px_rgba(200,16,46,0.3)] hover:shadow-[0_0_30px_rgba(200,16,46,0.6)] transition-all">
-                    Consultar Gira
+                    Falar conosco
                 </a>
                 <a href="#sobre" class="group flex items-center gap-2 text-white hover:text-[#D4AF37] transition duration-300 font-semibold uppercase tracking-widest text-sm border-b border-transparent hover:border-[#D4AF37] pb-1">
                     Conheça Nossa Essência
