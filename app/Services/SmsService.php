@@ -12,10 +12,10 @@ class SmsService
     private string $apiKey;
     private string $sender;
 
-    public function __construct()
+    public function __construct(?string $apiKey = null)
     {
         $this->apiUrl = config('casalar.sms.api_url');
-        $this->apiKey = config('casalar.sms.api_key');
+        $this->apiKey = $apiKey;
         $this->sender = config('casalar.sms.sender', 'CASALAR');
     }
 

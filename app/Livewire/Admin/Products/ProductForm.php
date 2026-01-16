@@ -137,7 +137,7 @@ class ProductForm extends Component
             'image' => 'nullable|image|max:2048',
         ]);
         
-       try { 
+        try { 
             $validated['slug'] = Str::slug($validated['name']);
 
             $productService = app(ProductService::class);
