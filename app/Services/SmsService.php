@@ -9,13 +9,13 @@ use Illuminate\Support\Facades\Log;
 class SmsService
 {
     private string $apiUrl;
-    private string $apiKey;
+    private ?string $apiKey;
     private string $sender;
 
     public function __construct(?string $apiKey = null)
     {
         $this->apiUrl = config('casalar.sms.api_url');
-        $this->apiKey = $apiKey;
+        $this->apiKey = $apiKey ?? '';
         $this->sender = config('casalar.sms.sender', 'CASALAR');
     }
 
