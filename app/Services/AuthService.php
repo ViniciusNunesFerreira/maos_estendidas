@@ -20,7 +20,7 @@ class AuthService
         private FilhoService $filhoService,
     ) {}
 
-/**
+    /**
      * Registro de novo Filho utilizando a estrutura do FilhoService
      * Regra: Status inicial 'inactive' para aprovação administrativa.
      */

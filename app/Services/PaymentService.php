@@ -2,102 +2,471 @@
 
 namespace App\Services;
 
-use App\Models\Payment;
 use App\Models\Order;
-use App\Events\PaymentConfirmed;
+use App\Models\Payment;
+use App\Models\PaymentIntent;
+use App\Models\Filho;
+use App\Exceptions\MercadoPagoException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
+/**
+ * Payment Service - Orquestrador Central de Pagamentos
+ * 
+ * Responsabilidades:
+ * - Orquestrar todos os métodos de pagamento
+ * - Delegar para services especializados
+ * - Processar saldo interno (balance)
+ * - Gerenciar status de pagamentos
+ * - Reembolsos e cancelamentos
+ * 
+ * Fluxo:
+ * OrderController → PaymentService → CheckoutTransparenteService | Lógica Interna
+ */
 class PaymentService
 {
+    public function __construct(
+        protected CheckoutTransparenteService $checkoutTransparente,
+        protected MercadoPagoService $mercadoPago
+    ) {}
+
+    // =========================================================
+    // ORQUESTRAÇÃO PRINCIPAL
+    // =========================================================
+
     /**
-     * Confirmar pagamento
+     * Processar pagamento de um pedido
+     * 
+     * @param Order $order Pedido a ser pago
+     * @param string $method Método: 'balance' | 'pix' | 'credit_card'
+     * @param array $data Dados adicionais (card_token, installments, etc)
+     * @return array Resultado do processamento
+     * @throws Exception
      */
-    public function confirmPayment(Payment $payment, array $gatewayData = []): Payment
+    public function processOrderPayment(Order $order, string $method, array $data = []): array
     {
-        return DB::transaction(function () use ($payment, $gatewayData) {
-            $payment->update([
-                'status' => 'paid',
-                'paid_at' => now(),
-                'gateway_id' => $gatewayData['gateway_id'] ?? null,
-                'gateway_response' => $gatewayData,
+        // Validar pedido
+        $this->validateOrderForPayment($order);
+
+        // Validar método
+        if (!in_array($method, ['balance', 'pix', 'credit_card', 'debit_card'])) {
+            throw new Exception("Método de pagamento inválido: {$method}");
+        }
+
+        // Delegar para método específico
+        return match($method) {
+            'balance' => $this->processBalancePayment($order),
+            'pix' => $this->processPixPayment($order),
+            'credit_card' => $this->processCardPayment($order, $data),
+            'debit_card' => $this->processCardPayment($order, $data),
+        };
+    }
+
+    // =========================================================
+    // SALDO INTERNO (BALANCE)
+    // =========================================================
+
+    /**
+     * Processar pagamento com saldo interno
+     * Débito imediato do crédito disponível
+     */
+    protected function processBalancePayment(Order $order): array
+    {
+        return DB::transaction(function () use ($order) {
+            $filho = $order->filho;
+
+            if (!$filho) {
+                throw new Exception('Pedido não pertence a um filho válido');
+            }
+
+            // Validar saldo disponível
+            if ($filho->credit_available < $order->total) {
+                throw new Exception('Saldo insuficiente para concluir o pagamento');
+            }
+
+            // Debitar crédito
+            $previousBalance = $filho->credit_available;
+            $filho->credit_used += $order->total;
+            $filho->save();
+            $filho->refresh();
+            $newBalance = $filho->credit_available;
+
+            // Criar Payment
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'method' => 'balance',
+                'amount' => $order->total,
+                'status' => 'confirmed',
+                'confirmed_at' => now(),
+                
+                // Metadata do saldo
+                'previous_balance' => $previousBalance,
+                'new_balance' => $newBalance,
             ]);
 
-            // Atualizar pedido
-            $order = $payment->order;
+            // Atualizar Order
             $order->update([
                 'status' => 'confirmed',
-                'payment_confirmed_at' => now(),
+                'payment_status' => 'paid',
+                'paid_at' => now(),
             ]);
 
-            // Disparar evento
-            event(new PaymentConfirmed($payment));
+            Log::info('Pagamento com saldo interno processado', [
+                'order_id' => $order->id,
+                'payment_id' => $payment->id,
+                'amount' => $order->total,
+                'filho_id' => $filho->id,
+                'previous_balance' => $previousBalance,
+                'new_balance' => $newBalance,
+            ]);
 
-            return $payment;
+            return [
+                'success' => true,
+                'method' => 'balance',
+                'payment_id' => $payment->id,
+                'order_status' => 'confirmed',
+                'payment_status' => 'paid',
+                'balance' => [
+                    'previous' => $previousBalance,
+                    'debited' => $order->total,
+                    'current' => $newBalance,
+                ],
+                'message' => 'Pagamento confirmado com sucesso!',
+            ];
+        });
+    }
+
+    // =========================================================
+    // PIX (Mercado Pago)
+    // =========================================================
+
+    /**
+     * Processar pagamento PIX
+     * Delega para CheckoutTransparenteService
+     */
+    protected function processPixPayment(Order $order): array
+    {
+        try {
+            $result = $this->checkoutTransparente->createPixPayment($order);
+
+            if (!isset($result['payment_intent_id']) || !isset($result['mp_payment_id'])) {
+                Log::error('Resposta PIX inválida');
+                throw new Exception('Resposta inválida');
+            }
+
+
+            
+            return [
+                'success' => true,
+                'method' => 'pix',
+                'payment_intent_id' => $result['payment_intent_id'],
+                'mp_payment_id' => $result['mp_payment_id'],
+                'status' => $result['status'],
+                'pix' => $result['pix'],
+                'message' => 'QR Code PIX gerado com sucesso',
+                'next_step' => 'scan_qr_code',
+            ];
+
+        } catch (MercadoPagoException $e) {
+            Log::error('Erro ao processar PIX', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new Exception('Erro ao gerar PIX: ' . $e->getMessage());
+        }
+    }
+
+    // =========================================================
+    // CARTÃO (Mercado Pago)
+    // =========================================================
+
+    /**
+     * Processar pagamento com cartão
+     * Delega para CheckoutTransparenteService
+     */
+    protected function processCardPayment(Order $order, array $data): array
+    {
+        // Validar dados do cartão
+        if (empty($data['card_token'])) {
+            throw new Exception('Token do cartão é obrigatório');
+        }
+
+        $cardToken = $data['card_token'];
+        $installments = $data['installments'] ?? 1;
+
+        // Validar parcelas
+        if ($installments < 1 || $installments > 12) {
+            throw new Exception('Número de parcelas inválido (1-12)');
+        }
+
+        try {
+            $result = $this->checkoutTransparente->createCardPayment(
+                $order,
+                $cardToken,
+                $installments
+            );
+
+            Log::info('Pagamento com cartão processado', [
+                'order_id' => $order->id,
+                'payment_intent_id' => $result['payment_intent_id'],
+                'mp_payment_id' => $result['mp_payment_id'],
+                'status' => $result['status'],
+                'approved' => $result['approved'],
+            ]);
+
+            return [
+                'success' => true,
+                'method' => 'credit_card',
+                'payment_intent_id' => $result['payment_intent_id'],
+                'mp_payment_id' => $result['mp_payment_id'],
+                'status' => $result['status'],
+                'approved' => $result['approved'],
+                'status_detail' => $result['status_detail'] ?? null,
+                'message' => $result['approved'] 
+                    ? 'Pagamento aprovado com sucesso!' 
+                    : 'Pagamento em processamento',
+                'next_step' => $result['approved'] ? 'completed' : 'wait_approval',
+            ];
+
+        } catch (MercadoPagoException $e) {
+            Log::error('Erro ao processar cartão', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new Exception('Erro ao processar cartão: ' . $e->getMessage());
+        }
+    }
+
+    // =========================================================
+    // STATUS E CONSULTAS
+    // =========================================================
+
+    /**
+     * Verificar status de um PaymentIntent
+     */
+    public function checkPaymentStatus(PaymentIntent $intent): array
+    {
+        try {
+            // Se for balance, já está confirmado
+            if ($intent->payment_method === 'balance') {
+                return [
+                    'success' => true,
+                    'status' => 'approved',
+                    'approved' => true,
+                    'order_status' => $intent->order->status,
+                ];
+            }
+
+            // Para PIX e Cartão, consultar no CheckoutTransparente
+            $result = $this->checkoutTransparente->checkPaymentStatus($intent);
+
+            return [
+                'success' => true,
+                'status' => $result['status'],
+                'approved' => $result['approved'],
+                'order_id' => $intent->order_id,
+                'order_status' => $intent->order->fresh()->status,
+            ];
+
+        } catch (Exception $e) {
+            Log::error('Erro ao verificar status de pagamento', [
+                'intent_id' => $intent->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    // =========================================================
+    // CANCELAMENTO E REEMBOLSO
+    // =========================================================
+
+    /**
+     * Cancelar PaymentIntent
+     */
+    public function cancelPaymentIntent(PaymentIntent $intent, string $reason = null): void
+    {
+        DB::transaction(function () use ($intent, $reason) {
+            // Se for balance e já foi aprovado, estornar crédito
+            if ($intent->payment_method === 'balance' && $intent->is_approved) {
+                $this->refundBalancePayment($intent);
+            }
+
+            // Se for PIX/Card, delegar para CheckoutTransparente
+            if (in_array($intent->payment_method, ['pix', 'credit_card', 'debit_card'])) {
+                $this->checkoutTransparente->cancelPayment($intent);
+            }
+
+            Log::info('PaymentIntent cancelado', [
+                'intent_id' => $intent->id,
+                'order_id' => $intent->order_id,
+                'reason' => $reason,
+            ]);
         });
     }
 
     /**
-     * Cancelar pagamento
+     * Reembolsar pagamento com saldo interno
      */
-    public function cancelPayment(Payment $payment, ?string $reason = null): Payment
+    protected function refundBalancePayment(PaymentIntent $intent): void
     {
-        $payment->update([
-            'status' => 'cancelled',
-            'cancelled_at' => now(),
-            'cancellation_reason' => $reason,
-        ]);
+        $order = $intent->order;
+        $filho = $order->filho;
+        $payment = $intent->payment;
 
-        return $payment;
-    }
+        if (!$filho || !$payment) {
+            throw new Exception('Não é possível estornar: dados incompletos');
+        }
 
-    /**
-     * Reembolsar pagamento
-     */
-    public function refundPayment(Payment $payment, ?float $amount = null): Payment
-    {
-        $refundAmount = $amount ?? $payment->amount;
+        // Estornar crédito
+        $filho->credit_used -= $order->total;
+        $filho->save();
 
+        // Atualizar payment
         $payment->update([
             'status' => 'refunded',
             'refunded_at' => now(),
-            'refund_amount' => $refundAmount,
         ]);
 
-        return $payment;
-    }
+        // Atualizar order
+        $order->update([
+            'status' => 'cancelled',
+            'payment_status' => 'refunded',
+        ]);
 
-    /**
-     * Criar pagamento pendente
-     */
-    public function createPendingPayment(
-        Order $order,
-        string $method,
-        float $amount,
-        array $metadata = []
-    ): Payment {
-        return Payment::create([
+        Log::info('Saldo interno estornado', [
             'order_id' => $order->id,
-            'method' => $method,
-            'amount' => $amount,
-            'status' => 'pending',
-            'expires_at' => now()->addMinutes(30),
-            'metadata' => $metadata,
+            'payment_id' => $payment->id,
+            'amount' => $order->total,
+            'filho_id' => $filho->id,
         ]);
     }
 
     /**
-     * Verificar pagamentos expirados
+     * Reembolsar pagamento completo
      */
-    public function expirePendingPayments(): int
+    public function refundPayment(Payment $payment, ?float $amount = null): Payment
     {
-        return Payment::query()
-            ->where('status', 'pending')
-            ->where('expires_at', '<', now())
-            ->update([
-                'status' => 'expired',
-                'expired_at' => now(),
+        return DB::transaction(function () use ($payment, $amount) {
+            $refundAmount = $amount ?? $payment->amount;
+
+            // Se tem MP payment ID, reembolsar no gateway
+            if ($payment->gateway_transaction_id) {
+                try {
+                    $this->mercadoPago->refundPayment($payment->gateway_transaction_id);
+                } catch (Exception $e) {
+                    Log::error('Erro ao reembolsar no MP', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    throw $e;
+                }
+            }
+
+            // Se for balance, estornar crédito
+            if ($payment->method === 'balance') {
+                $filho = $payment->order->filho;
+                if ($filho) {
+                    $filho->credit_used -= $refundAmount;
+                    $filho->save();
+                }
+            }
+
+            // Atualizar payment
+            $payment->update([
+                'status' => 'refunded',
+                'refunded_at' => now(),
+                'refund_amount' => $refundAmount,
             ]);
+
+            // Atualizar order
+            $payment->order->update([
+                'status' => 'cancelled',
+                'payment_status' => 'refunded',
+            ]);
+
+            Log::info('Pagamento reembolsado', [
+                'payment_id' => $payment->id,
+                'amount' => $refundAmount,
+            ]);
+
+            return $payment->fresh();
+        });
     }
+
+    // =========================================================
+    // VALIDAÇÕES
+    // =========================================================
+
+    /**
+     * Validar se pedido pode ser pago
+     */
+    protected function validateOrderForPayment(Order $order): void
+    {
+        if ($order->status === 'cancelled') {
+            throw new Exception('Pedido foi cancelado');
+        }
+
+        if ($order->payment_status === 'paid') {
+            throw new Exception('Pedido já foi pago');
+        }
+
+        if ($order->total <= 0) {
+            throw new Exception('Valor do pedido inválido');
+        }
+
+        // Validar filho se for pedido de filho
+        if ($order->customer_type === 'filho' && !$order->filho_id) {
+            throw new Exception('Pedido não possui filho vinculado');
+        }
+    }
+
+    /**
+     * Obter métodos de pagamento disponíveis para um pedido
+     */
+    public function getAvailablePaymentMethods(Order $order): array
+    {
+        $methods = [];
+
+        // Balance - apenas para filhos
+        if ($order->customer_type === 'filho' && $order->filho) {
+            $methods[] = [
+                'method' => 'balance',
+                'name' => 'Saldo Interno',
+                'available' => $order->filho->credit_available >= $order->total,
+                'balance' => [
+                    'available' => $order->filho->credit_available,
+                    'required' => $order->total,
+                    'sufficient' => $order->filho->credit_available >= $order->total,
+                ],
+            ];
+        }
+
+        // PIX - disponível para todos
+        $methods[] = [
+            'method' => 'pix',
+            'name' => 'PIX',
+            'available' => $this->mercadoPago->isConfigured(),
+        ];
+
+        // Cartão - disponível para todos
+        $methods[] = [
+            'method' => 'credit_card',
+            'name' => 'Cartão de Crédito',
+            'available' => $this->mercadoPago->isConfigured(),
+            'max_installments' => 12,
+        ];
+
+        return $methods;
+    }
+
+    // =========================================================
+    // ESTATÍSTICAS
+    // =========================================================
 
     /**
      * Obter estatísticas de pagamentos
@@ -120,43 +489,26 @@ class PaymentService
         }
 
         $byMethod = (clone $query)
-            ->where('status', 'paid')
+            ->where('status', 'confirmed')
             ->groupBy('method')
             ->selectRaw('method, COUNT(*) as count, SUM(amount) as total')
-            ->pluck('total', 'method')
-            ->toArray();
+            ->get()
+            ->mapWithKeys(fn($item) => [$item->method => [
+                'count' => $item->count,
+                'total' => (float) $item->total,
+            ]]);
 
         return [
-            'total_received' => (clone $query)->where('status', 'paid')->sum('amount'),
-            'total_pending' => (clone $query)->where('status', 'pending')->sum('amount'),
-            'total_refunded' => (clone $query)->where('status', 'refunded')->sum('refund_amount'),
-            'by_method' => $byMethod,
+            'total_received' => (float) (clone $query)->where('status', 'confirmed')->sum('amount'),
+            'total_pending' => (float) (clone $query)->whereIn('status', ['pending', 'processing'])->sum('amount'),
+            'total_refunded' => (float) (clone $query)->where('status', 'refunded')->sum('refund_amount'),
+            'by_method' => $byMethod->toArray(),
             'count_by_status' => [
-                'paid' => (clone $query)->where('status', 'paid')->count(),
-                'pending' => (clone $query)->where('status', 'pending')->count(),
+                'confirmed' => (clone $query)->where('status', 'confirmed')->count(),
+                'pending' => (clone $query)->whereIn('status', ['pending', 'processing'])->count(),
                 'cancelled' => (clone $query)->where('status', 'cancelled')->count(),
                 'refunded' => (clone $query)->where('status', 'refunded')->count(),
             ],
         ];
-    }
-
-
-    public function generatePixCode(array $data): string
-    {
-        // Integrar com gateway real (PagSeguro, MercadoPago, etc)
-        // Por enquanto, mock:
-        return "00020126580014br.gov.bcb.pix0136" . $data['invoice_id'] . "...";
-    }
-    
-    public function registerPendingConfirmation($invoice, array $metadata): void
-    {
-        // Salvar confirmação pendente
-        $invoice->update([
-            'pending_confirmation' => true,
-            'confirmed_by_user_at' => $metadata['confirmed_by_user_at'],
-        ]);
-        
-        // Enviar notificação para admin
-        // ...
     }
 }

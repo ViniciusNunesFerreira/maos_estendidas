@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\SettingsController;
 
 use App\Livewire\Admin\Filhos\FilhoSubscriptionForm;
 
+use App\Http\Controllers\Admin\PaymentSettingsController;
+
 /*
 |--------------------------------------------------------------------------
 | Admin Routes - Mãos Estendidas
@@ -143,4 +145,42 @@ Route::middleware('role:admin')->prefix('settings')->name('settings.')->group(fu
     Route::post('/general', [SettingsController::class, 'updateGeneral'])->name('general');
     Route::post('/subscription', [SettingsController::class, 'updateSubscription'])->name('subscription');
     Route::post('/fiscal', [SettingsController::class, 'updateFiscal'])->name('fiscal');
+});
+
+// =========================================================
+// CONFIGURAÇÕES DE PAGAMENTO (Admin)
+// =========================================================
+
+Route::middleware('role:admin')->prefix('settings')->name('settings.')->group(function () {
+    
+    Route::get('/payment-gateways', [PaymentSettingsController::class, 'index'])
+        ->name('payment-gateways');
+    
+    Route::post('/payment-gateways/credentials', [PaymentSettingsController::class, 'updateCredentials'])
+        ->name('payment-gateways.credentials');
+    
+    Route::post('/payment-gateways/point', [PaymentSettingsController::class, 'updatePoint'])
+        ->name('payment-gateways.point');
+    
+    Route::post('/payment-gateways/methods', [PaymentSettingsController::class, 'updateMethods'])
+        ->name('payment-gateways.methods');
+    
+    Route::post('/payment-gateways/toggle', [PaymentSettingsController::class, 'toggle'])
+        ->name('payment-gateways.toggle');
+    
+    Route::post('/payment-gateways/test', [PaymentSettingsController::class, 'testConnection'])
+        ->name('payment-gateways.test');
+    
+    // Devices Point
+    Route::post('/payment-gateways/devices', [PaymentSettingsController::class, 'storeDevice'])
+        ->name('payment-gateways.devices.store');
+    
+    Route::put('/payment-gateways/devices/{device}', [PaymentSettingsController::class, 'updateDevice'])
+        ->name('payment-gateways.devices.update');
+    
+    Route::post('/payment-gateways/devices/{device}/toggle', [PaymentSettingsController::class, 'toggleDevice'])
+        ->name('payment-gateways.devices.toggle');
+    
+    Route::delete('/payment-gateways/devices/{device}', [PaymentSettingsController::class, 'destroyDevice'])
+        ->name('payment-gateways.devices.destroy');
 });

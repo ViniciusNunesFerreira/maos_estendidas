@@ -132,6 +132,12 @@
                 <x-icon name="cog-6-tooth" class="w-5 h-5 mr-3" />
                 <span>Configurações</span>
             </a>
+
+            <a href="{{ route('admin.settings.payment-gateways') }}" 
+               class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.settings.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                <x-icon name="cog-6-tooth" class="w-5 h-5 mr-3" />
+                <span>Pagamentos</span>
+            </a>
         </div>
     </nav>
     

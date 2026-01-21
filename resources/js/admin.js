@@ -49,6 +49,10 @@ document.addEventListener('livewire:init', () => {
         window.dispatchEvent(new CustomEvent('close-modal-window', { detail: modalName }));
     });
 
+    Livewire.on('refresh-page', () => {
+        setTimeout(() => window.location.reload(), 1000);
+    });
+    
     // Listener para refresh após atualização de componente filho
     Livewire.on('filhoUpdated', () => {
         setTimeout(() => {

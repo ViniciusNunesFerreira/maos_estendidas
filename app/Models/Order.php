@@ -62,6 +62,10 @@ class Order extends Model
         'sync_uuid',
         'notes',
         'kitchen_notes',
+
+        'payment_intent_id',
+        'awaiting_external_payment',
+        'payment_method_chosen'
     ];
 
     protected $casts = [
@@ -119,6 +123,19 @@ class Order extends Model
     public function transaction(): HasOne
     {
         return $this->hasOne(Transaction::class);
+    }
+
+
+    public function paymentIntent(): BelongsTo
+    {
+        return $this->belongsTo(PaymentIntent::class, 'payment_intent_id');
+    }
+
+    public function isPaid(): bool
+    {
+        // Verifique qual coluna define o pagamento no seu banco. 
+        // Geralmente é o status ou a existência da data de pagamento.
+        return $this->status === 'paid' || $this->paid_at !== null;
     }
 
 
