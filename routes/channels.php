@@ -1,10 +1,11 @@
 <?php
 
 use Illuminate\Support\Facades\Broadcast;
+use App\Models\PaymentIntent;
 
 /*
 |--------------------------------------------------------------------------
-| Broadcast Channels - Casa Lar
+| Broadcast Channels - Maos estendidas
 |--------------------------------------------------------------------------
 |
 | Canais de broadcasting para notificações em tempo real
@@ -35,14 +36,6 @@ Broadcast::channel('filho.{filhoId}', function ($user, $filhoId) {
 Broadcast::channel('pdv.{deviceId}', function ($user, $deviceId) {
     return $user->hasRole(['admin', 'operator']) && 
            $user->device_id === $deviceId;
-});
-
-// =====================================================
-// CANAL DO KDS - COZINHA (Privado)
-// =====================================================
-
-Broadcast::channel('kds', function ($user) {
-    return $user->hasRole(['admin', 'kitchen', 'manager']);
 });
 
 // =====================================================
@@ -96,6 +89,30 @@ Broadcast::channel('invoices.{filhoId}', function ($user, $filhoId) {
     
     // Admin pode ver todas
     return $user->hasRole(['admin', 'manager', 'financial']);
+});
+
+
+// =====================================================
+// CANAL DE WEBHOOK PAGAMENTOS (Privado)
+// =====================================================
+
+
+Broadcast::channel('payment.{paymentIntentId}', function ($user, $paymentIntentId) {
+    $intent = PaymentIntent::find($paymentIntentId);
+    
+    if (!$intent) return false;
+
+    // Se for Order
+    if ($intent->order_id && $intent->order->filho->user_id === $user->id) {
+        return true;
+    }
+    
+    // Se for Invoice
+    if ($intent->invoice_id && $intent->invoice->filho->user_id === $user->id) {
+        return true;
+    }
+
+    return false; 
 });
 
 // =====================================================

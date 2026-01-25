@@ -10,6 +10,7 @@ use App\Exceptions\MercadoPagoException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use App\Services\CreditConsumptionService;
 
 /**
  * Payment Service - Orquestrador Central de Pagamentos
@@ -28,7 +29,8 @@ class PaymentService
 {
     public function __construct(
         protected CheckoutTransparenteService $checkoutTransparente,
-        protected MercadoPagoService $mercadoPago
+        protected MercadoPagoService $mercadoPago,
+        protected CreditConsumptionService $creditConsumption
     ) {}
 
     // =========================================================
@@ -69,72 +71,45 @@ class PaymentService
 
     /**
      * Processar pagamento com saldo interno
-     * Débito imediato do crédito disponível
+     * ✅ ATUALIZADO: Usa CreditConsumptionService
      */
     protected function processBalancePayment(Order $order): array
     {
-        return DB::transaction(function () use ($order) {
-            $filho = $order->filho;
-
-            if (!$filho) {
-                throw new Exception('Pedido não pertence a um filho válido');
-            }
-
-            // Validar saldo disponível
-            if ($filho->credit_available < $order->total) {
-                throw new Exception('Saldo insuficiente para concluir o pagamento');
-            }
-
-            // Debitar crédito
-            $previousBalance = $filho->credit_available;
-            $filho->credit_used += $order->total;
-            $filho->save();
-            $filho->refresh();
-            $newBalance = $filho->credit_available;
-
-            // Criar Payment
-            $payment = Payment::create([
+        try {
+            // Delegar para CreditConsumptionService
+            $result = $this->creditConsumption->consumeLimit($order);
+            
+            Log::info('Pagamento com saldo interno processado via CreditConsumptionService', [
                 'order_id' => $order->id,
-                'method' => 'balance',
                 'amount' => $order->total,
-                'status' => 'confirmed',
-                'confirmed_at' => now(),
-                
-                // Metadata do saldo
-                'previous_balance' => $previousBalance,
-                'new_balance' => $newBalance,
+                'filho_id' => $order->filho_id,
+                'new_credit_available' => $result['new_credit_available'],
             ]);
-
-            // Atualizar Order
-            $order->update([
-                'status' => 'confirmed',
-                'payment_status' => 'paid',
-                'paid_at' => now(),
-            ]);
-
-            Log::info('Pagamento com saldo interno processado', [
-                'order_id' => $order->id,
-                'payment_id' => $payment->id,
-                'amount' => $order->total,
-                'filho_id' => $filho->id,
-                'previous_balance' => $previousBalance,
-                'new_balance' => $newBalance,
-            ]);
-
+            
             return [
                 'success' => true,
                 'method' => 'balance',
-                'payment_id' => $payment->id,
-                'order_status' => 'confirmed',
+                'order_status' => 'paid',
                 'payment_status' => 'paid',
                 'balance' => [
-                    'previous' => $previousBalance,
-                    'debited' => $order->total,
-                    'current' => $newBalance,
+                    'current' => $result['new_credit_available'],
+                    'credit_limit' => $result['credit_limit'],
+                    'credit_used' => $result['credit_used'],
                 ],
-                'message' => 'Pagamento confirmado com sucesso!',
+                'message' => $result['message'],
             ];
-        });
+            
+        } catch (\App\Exceptions\InsufficientCreditException $e) {
+            throw $e;
+        } catch (\App\Exceptions\PaymentException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Erro ao processar saldo interno', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     // =========================================================

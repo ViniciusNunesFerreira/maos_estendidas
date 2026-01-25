@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\App\MenuController as AppMenuController;
 use App\Http\Controllers\Api\V1\App\OrderController as AppOrderController;
 use App\Http\Controllers\Api\V1\App\BalanceController as AppBalanceController;
 use App\Http\Controllers\Api\V1\App\PaymentController;
+use App\Http\Controllers\Api\V1\App\TransactionController;
 use App\Http\Controllers\Api\V1\PDV\FilhoController as PDVFilhoController;
 use App\Http\Controllers\Api\V1\PDV\ProductController as PDVProductController;
 use App\Http\Controllers\Api\V1\PDV\OrderController as PDVOrderController;
@@ -175,12 +176,33 @@ Route::prefix('v1')->group(function () {
                 Route::post('/{order}/pay', [AppOrderController::class, 'pay']);
             });
 
+            Route::prefix('transactions')->group(function(){
+                // Transações
+                Route::get('/', [TransactionController::class, 'index']);
+                Route::post('/consume-limit', [TransactionController::class, 'consumeLimit']);
+                Route::get('/balance', [TransactionController::class, 'getBalance']);
+            });
+
             // Payments - Mercado Pago (Mantido para retrocompatibilidade)
             Route::prefix('payments')->group(function () {
                 Route::post('/create-pix', [PaymentController::class, 'createPixPayment']);
                 Route::post('/create-card', [PaymentController::class, 'createCardPayment']);
                 Route::get('/{paymentIntent}/status', [PaymentController::class, 'checkStatus']);
                 Route::post('/{paymentIntent}/cancel', [PaymentController::class, 'cancelPayment']);
+
+                // ========== NOVOS ENDPOINTS - ORDERS (MODERNOS) ==========
+                Route::post('/orders/{order}/pix', [PaymentController::class, 'createOrderPix']);
+                Route::post('/orders/{order}/card', [PaymentController::class, 'createOrderCard']);
+                
+                // ========== NOVOS ENDPOINTS - INVOICES ==========
+                Route::post('/invoices/{invoice}/pix', [PaymentController::class, 'createInvoicePixPayment']);
+                Route::post('/invoices/{invoice}/card', [PaymentController::class, 'createInvoiceCardPayment']);
+                Route::get('/invoices/pending', [PaymentController::class, 'getPendingInvoices']);
+                
+                // ========== NOVOS ENDPOINTS - STATUS/CANCEL (VERSÕES MODERNAS) ==========
+                Route::get('/{paymentIntent}/status-v2', [PaymentController::class, 'checkStatus']);
+                Route::post('/{paymentIntent}/cancel-v2', [PaymentController::class, 'cancelPaymentV2']);
+
             });
             
         });

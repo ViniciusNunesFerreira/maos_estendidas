@@ -18,6 +18,7 @@ class PaymentIntent extends Model
 
     protected $fillable = [
         'order_id',
+        'invoice_id',
         'payment_id',
         'mp_payment_id',
         'mp_payment_intent_id',
@@ -72,6 +73,11 @@ class PaymentIntent extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class);
     }
 
     public function payment(): BelongsTo

@@ -6,6 +6,16 @@ use App\Models\Filho;
 use App\Models\CreditTransaction;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @deprecated 2.0 Use CreditConsumptionService e CreditRestorationService
+ * Este service será removido na versão 3.0
+ * 
+ * Migração:
+ * - credit() → CreditRestorationService->restoreCredit()
+ * - debit() → CreditConsumptionService->consumeLimit()
+ * - getAvailableCredit() → CreditConsumptionService->getBalance()
+ */
+
 class CreditService
 {
     /**

@@ -149,7 +149,7 @@ class OrderController extends Controller
      * Processar pagamento do pedido
      * POST /api/v1/app/orders/{order}/pay
      * 
-     * ✅ CORRIGIDO: Usa PayOrderRequest
+     * ✅ ATUALIZADO: Usa novo sistema de pagamentos
      */
     public function pay(PayOrderRequest $request, Order $order): JsonResponse
     {
@@ -166,7 +166,7 @@ class OrderController extends Controller
             }
 
             // Validar se pedido pode ser pago
-            if ($order->payment_status === 'paid') {
+            if ($order->status === 'paid') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Pedido já foi pago',
@@ -180,17 +180,12 @@ class OrderController extends Controller
                 ], 422);
             }
 
-            // Processar pagamento
+            // Processar pagamento via PaymentService
             $paymentMethod = $request->validated()['payment_method'];
             $paymentData = [
                 'card_token' => $request->validated()['card_token'] ?? null,
                 'installments' => $request->validated()['installments'] ?? 1,
                 'card_data' => $request->validated()['card_data'] ?? null,
-                'amount_paid' => $request->validated()['amount_paid'] ?? null,
-                'device_id' => $request->validated()['device_id'] ?? null,
-                'nsu' => $request->validated()['nsu'] ?? null,
-                'auth_code' => $request->validated()['auth_code'] ?? null,
-                'transaction_id' => $request->validated()['transaction_id'] ?? null,
             ];
 
             $result = $this->paymentService->processOrderPayment(
@@ -203,7 +198,6 @@ class OrderController extends Controller
                 'order_id' => $order->id,
                 'method' => $paymentMethod,
                 'success' => $result['success'],
-                'origin' => $request->header('X-Origin', 'app'),
             ]);
 
             return response()->json([
@@ -211,12 +205,15 @@ class OrderController extends Controller
                 'data' => $result,
             ]);
 
+        } catch (\App\Exceptions\InsufficientCreditException $e) {
+            return $e->render();
+        } catch (\App\Exceptions\PaymentException $e) {
+            return $e->render();
         } catch (\Exception $e) {
             Log::error('Erro ao processar pagamento', [
                 'order_id' => $order->id,
                 'user_id' => $request->user()->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
