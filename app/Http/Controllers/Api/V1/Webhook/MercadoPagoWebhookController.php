@@ -193,8 +193,8 @@ class MercadoPagoWebhookController extends Controller
             }
 
             Log::info('Pagamento aprovado processado', [
-                'order_id' => $order?->id,
-                'invoice_id' => $invoice?->id,
+                'order_id' => $intent->order_id,
+                'invoice_id' => $intent->invoice_id,
                 'payment_id' => $payment->id,
                 'amount' => $payment->amount,
             ]);
