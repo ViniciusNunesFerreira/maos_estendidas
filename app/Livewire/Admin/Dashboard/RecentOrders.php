@@ -22,14 +22,14 @@ class RecentOrders extends Component
     public function loadData(): void
     {
         $this->orders = Order::query()
-            ->with(['filho:id,name', 'items'])
+            ->with(['filho:id,user_id', 'filho.user:id,name,email', 'items'])
             ->latest()
             ->limit(10)
             ->get()
             ->map(fn($order) => [
                 'id' => $order->id,
                 'order_number' => $order->order_number,
-                'customer_name' => $order->filho?->name ?? $order->guest_name ?? 'Visitante',
+                'customer_name' => $order->filho?->user->name ?? $order->guest_name ?? 'Visitante',
                 'total' => $order->total,
                 'status' => $order->status,
                 'status_label' => $this->getStatusLabel($order->status),

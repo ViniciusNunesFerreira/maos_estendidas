@@ -79,6 +79,7 @@ class PaymentSettingsController extends Controller
             'environment' => 'required|in:sandbox,production',
             'access_token' => 'required|string',
             'public_key' => 'required|string',
+            'webhook_secret' => 'nullable|string',
         ]);
 
         $config = PaymentSetting::getMercadoPagoConfig();
@@ -87,6 +88,7 @@ class PaymentSettingsController extends Controller
             'environment' => $validated['environment'],
             'access_token' => $validated['access_token'],
             'public_key' => $validated['public_key'],
+            'webhook_secret' => $validated['webhook_secret'],
         ]);
 
         return redirect()

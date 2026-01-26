@@ -15,9 +15,11 @@ class MercadoPagoCredentials extends Component
     public string $environment = 'sandbox';
     public string $access_token = '';
     public string $public_key = '';
+    public string $webhook_secret = '';
     
     // State
     public bool $showTokens = false;
+    public bool $showSecret = false;
     public bool $testing = false;
     public ?array $testResult = null;
 
@@ -25,6 +27,7 @@ class MercadoPagoCredentials extends Component
         'environment' => 'required|in:sandbox,production',
         'access_token' => 'required|string|min:20',
         'public_key' => 'required|string|min:20',
+        'webhook_secret' => 'nullable|string|min:20',
     ];
 
     public function mount()
@@ -32,6 +35,7 @@ class MercadoPagoCredentials extends Component
         $this->environment = $this->config->environment;
         $this->access_token = $this->config->access_token ?? '';
         $this->public_key = $this->config->public_key ?? '';
+         $this->webhook_secret = $this->config->webhook_secret ?? '';
     }
 
     public function save()
@@ -43,19 +47,22 @@ class MercadoPagoCredentials extends Component
                 'environment' => $this->environment,
                 'access_token' => $this->access_token,
                 'public_key' => $this->public_key,
+                'webhook_secret' => $this->webhook_secret,
             ]);
 
-            $this->dispatch('toast', 
+            $this->dispatch('flash', 
                 message: 'Credenciais atualizadas com sucesso!',
                 type: 'success'
             );
+
+           
 
         } catch (\Exception $e) {
             Log::error('Erro ao salvar credenciais MP', [
                 'error' => $e->getMessage(),
             ]);
 
-            $this->dispatch('toast',
+            $this->dispatch('flash',
                 message: 'Erro ao salvar credenciais: ' . $e->getMessage(),
                 type: 'error'
             );
