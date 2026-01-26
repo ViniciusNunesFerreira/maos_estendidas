@@ -63,9 +63,17 @@ class MercadoPagoWebhookController extends Controller
 
         $externalReference = $mpPayment['external_reference'] ?? null;
         
+        $typeWhere = 'order_id';
+        
+            if ($externalReference !== null && str_starts_with($externalReference, "invoice")) {
+                //verificar se a referencia externa é de uma ordem ou uma fatura;
+                $typeWhere = 'invoice_id';
+            }
+        
+        
         // Tentamos buscar pelo ID do MP ou pela External Reference (que deve ser o UUID do PaymentIntent)
         $paymentIntent = PaymentIntent::where('mp_payment_id', $mpPaymentId)
-            ->orWhere('id', $externalReference)
+            ->orWhere($typeWhere, $externalReference)
             ->first();
 
         if (!$paymentIntent) {
