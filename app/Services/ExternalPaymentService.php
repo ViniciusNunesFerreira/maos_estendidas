@@ -470,7 +470,7 @@ class ExternalPaymentService
                     'number' => preg_replace('/[^0-9]/', '', $invoice->filho->cpf),
                 ],
             ],
-            'notification_url' => "https://eomlimb9byboaq8.m.pipedream.net", ///route('api.webhooks.mercadopago'),
+            'notification_url' => route('api.webhooks.mercadopago'),
         ];
     }
     

@@ -363,7 +363,7 @@ class CheckoutTransparenteService
                     'number' => preg_replace('/\D/', '', $filho->cpf),
                 ],
             ],
-            'notification_url' => "https://eomlimb9byboaq8.m.pipedream.net", // route('api.webhooks.mercadopago'),
+            'notification_url' => route('api.webhooks.mercadopago'),
             'external_reference' => "order_{$order->id}",
             'metadata' => [
                 'entity_type' => 'order',
