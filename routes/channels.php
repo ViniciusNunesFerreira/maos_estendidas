@@ -13,6 +13,8 @@ use App\Models\PaymentIntent;
 |
 */
 
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
+
 // =====================================================
 // CANAL DO USUÁRIO (Privado)
 // =====================================================
