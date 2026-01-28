@@ -56,7 +56,6 @@ class MercadoPagoWebhookController extends Controller
     private function handlePayment(string $mpPaymentId): void
     {
         // 1. Buscar status atual no Mercado Pago (Single Source of Truth)
-        // Nunca confie apenas no payload do webhook, busque o status atualizado
         $mpPayment = $this->mercadoPago->getPayment($mpPaymentId);
         
         if (!$mpPayment) return;
@@ -74,11 +73,11 @@ class MercadoPagoWebhookController extends Controller
         }
         
         
-    
-        // Tentamos buscar pelo ID do MP ou pela External Reference (que deve ser o UUID do PaymentIntent)
-        $paymentIntent = PaymentIntent::where('mp_payment_id', $mpPaymentId)
-            ->orWhere($typeWhere, $externalReference)
-            ->first();
+        $paymentIntent = PaymentIntent::where('mp_payment_id', $mpPaymentId)->first();
+
+        if (!$paymentIntent) {
+            $paymentIntent = PaymentIntent::where($typeWhere, $externalReference)->latest() ->first();
+        }
 
         if (!$paymentIntent) {
             Log::warning("PaymentIntent não encontrado para MP ID: $mpPaymentId");
