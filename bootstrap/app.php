@@ -20,7 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->statefulApi();
+        $middleware->validateCsrfTokens(except: [
+            'api/*',
+            'broadcasting/auth'
+        ]);
+        
         $middleware->alias([
             'admin' => \App\Http\Middleware\AdminAuth::class,
             'role' => \App\Http\Middleware\CheckRole::class,
