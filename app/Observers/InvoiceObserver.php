@@ -16,7 +16,7 @@ class InvoiceObserver
 
     public function updated(Invoice $invoice): void
     {
-        if ($order->wasChanged('status') && $invoice->status === 'paid') {
+        if ($invoice->status === 'paid') {
             event(new InvoicePaid($invoice));
         }
     }
