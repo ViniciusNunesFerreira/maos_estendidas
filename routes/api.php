@@ -187,7 +187,7 @@ Route::prefix('v1')->group(function () {
             Route::prefix('payments')->group(function () {
                 Route::post('/create-pix', [PaymentController::class, 'createPixPayment']);
                 Route::post('/create-card', [PaymentController::class, 'createCardPayment']);
-                Route::get('/{paymentIntent}/status', [PaymentController::class, 'checkStatus']);
+                
                 Route::post('/{paymentIntent}/cancel', [PaymentController::class, 'cancelPayment']);
 
                 // ========== NOVOS ENDPOINTS - ORDERS (MODERNOS) ==========

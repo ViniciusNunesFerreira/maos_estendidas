@@ -66,7 +66,7 @@ class PaymentApproved implements ShouldBroadcast
             'amount_paid' => (float) $this->paymentIntent->amount_paid,
             'processed_at' => now()->toIso8601String(),
             'metadata' => [
-                'origin' => $this->paymentIntent->integration_type ?? 'app', // checkout, point_tef
+                'origin' => $this->paymentIntent->integration_type ?? 'checkout', // checkout, point_tef
                 'method' => $this->paymentIntent->payment_method // pix, credit_card
             ]
         ];

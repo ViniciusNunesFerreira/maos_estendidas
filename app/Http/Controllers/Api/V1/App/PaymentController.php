@@ -153,11 +153,22 @@ class PaymentController extends Controller
 
             // Verificar se pertence ao filho autenticado
             $filho = auth()->user()->filho;
-            if ($paymentIntent->order->filho_id !== $filho->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Pagamento não encontrado',
-                ], 404);
+
+            if ($paymentIntent->order_id) {
+                if ($paymentIntent->order->filho_id !== $filho->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pagamento não encontrado',
+                    ], 404);
+                }
+            }elseif($paymentIntent->invoice_id){
+
+                 if ($paymentIntent->invoice->filho_id !== $filho->id) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Pagamento não encontrado',
+                    ], 404);
+                }
             }
 
             // Verificar status atualizado
