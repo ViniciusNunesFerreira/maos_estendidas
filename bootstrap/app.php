@@ -20,7 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware) {
-         $middleware->alias([
+        $middleware->statefulApi();
+        $middleware->alias([
             'admin' => \App\Http\Middleware\AdminAuth::class,
             'role' => \App\Http\Middleware\CheckRole::class,
             'check.filho.status' => \App\Http\Middleware\CheckFilhoStatus::class,
