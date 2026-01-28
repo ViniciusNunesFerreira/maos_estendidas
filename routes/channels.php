@@ -99,8 +99,14 @@ Broadcast::channel('invoices.{filhoId}', function ($user, $filhoId) {
 
 Broadcast::channel('payment.{paymentIntentId}', function ($user, $paymentIntentId) {
     $intent = PaymentIntent::find($paymentIntentId);
+
+    \Log::debug((array) $intent);
     
     if (!$intent) return false;
+
+    \Log::info('user_id='.$user->id);
+
+
 
     // Se for Order
     if ($intent->order_id && $intent->order->filho->user_id === $user->id) {
@@ -111,6 +117,8 @@ Broadcast::channel('payment.{paymentIntentId}', function ($user, $paymentIntentI
     if ($intent->invoice_id && $intent->invoice->filho->user_id === $user->id) {
         return true;
     }
+
+     \Log::info('Não atendeu nenhum dos requisitos e retornou false no broadcast');
 
     return false; 
 });
