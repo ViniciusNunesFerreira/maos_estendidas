@@ -107,6 +107,7 @@ Broadcast::channel('payment.{paymentIntentId}', function ($user, $paymentIntentI
     \Log::info('user_id='.$user->id);
 
 
+    return true;
 
     // Se for Order
     if ($intent->order_id && $intent->order->filho->user_id === $user->id) {
