@@ -27,7 +27,7 @@
         <div class="flex items-center justify-between mb-6">
             <div class="flex items-center space-x-4">
                 @if($filho->photo_url)
-                    <img src="{{ Storage::url($filho->photo_url) }}" alt="{{ $filho->fullname }}" class="w-16 h-16 rounded-full object-cover">
+                    <img src="{{ asset($filho->photo_url) }}" alt="{{ $filho->fullname }}" class="w-16 h-16 rounded-full object-cover">
                 @else
                     <div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
                         <span class="text-2xl font-semibold text-primary-600">{{ substr($filho->fullname, 0, 1) }}</span>
