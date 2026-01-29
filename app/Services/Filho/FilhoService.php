@@ -11,6 +11,7 @@ use App\Services\SubscriptionService;
 use App\Jobs\SendFilhoApprovalNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class FilhoService
@@ -26,12 +27,20 @@ class FilhoService
     {
         return DB::transaction(function () use ($dto) {
 
+            $photoUrl = null;
+            if ($dto->photo) {
+                $path = $dto->photo->store('filhos/photos', 'public');
+                // Gera URL completa (requer php artisan storage:link)
+                $photoUrl = Storage::url($path);
+            }
+
             // Criar usuário
             $user = User::create([
                 'name' => $dto->name,
                 'email' => $dto->email ?? "{$dto->cpf}@maosestendidas.local", // Email opcional
                 'password' => Hash::make($dto->password),
                 'phone' => preg_replace('/\D/', '',  $dto->phone),
+                'avatar_url' => $photoUrl,
                 'role' => 'filho',
                 'is_active' => false, // Ativo após aprovação
             ]);

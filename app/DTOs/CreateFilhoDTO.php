@@ -3,6 +3,7 @@
 namespace App\DTOs;
 
 use App\Http\Requests\Admin\StoreFilhoRequest;
+use Illuminate\Http\UploadedFile;
 
 class CreateFilhoDTO
 {
@@ -22,7 +23,8 @@ class CreateFilhoDTO
         public ?string $state = null,
         public ?string $zipCode = null,
         public ?float $creditLimit = 1000.00,
-        public ?int $billingCloseDay = 28
+        public ?int $billingCloseDay = 28,
+        public ?UploadedFile $photo = null 
     ) {}
 
 
@@ -44,7 +46,8 @@ class CreateFilhoDTO
             state: $data['state'] ?? null,
             zipCode: $data['zipcode'] ?? null,
             creditLimit: isset($data['credit_limit']) ? (float) $data['credit_limit'] : 1000.00,
-            billingCloseDay: isset($data['billing_close_day']) ? (int) $data['billing_close_day'] : 28
+            billingCloseDay: isset($data['billing_close_day']) ? (int) $data['billing_close_day'] : 28,
+            photo: isset($data['photo']) && $data['photo'] instanceof UploadedFile ? $data['photo'] : null
         );
     }
 
@@ -66,7 +69,8 @@ class CreateFilhoDTO
             state: $request->validated('state') ?? null,
             zipCode: $request->validated('zipcode') ?? null,
             creditLimit: 1000.00,
-            billingCloseDay: $request->validated('billing_close_day') ?? 28
+            billingCloseDay: $request->validated('billing_close_day') ?? 28,
+            photo: $request->file('photo')
         );
     }
 }

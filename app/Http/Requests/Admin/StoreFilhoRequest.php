@@ -36,7 +36,7 @@ class StoreFilhoRequest extends FormRequest
             'billing_close_day' => 'nullable|integer|min:1|max:28',
             
             // Upload
-            'photo' => 'nullable|image|max:2048',
+            'photo' => 'nullable|image|max:5120'
         ];
     }
     
