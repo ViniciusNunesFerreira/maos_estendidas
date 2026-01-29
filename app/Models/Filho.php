@@ -179,6 +179,11 @@ class Filho extends Model
         return $this->user?->name ?? '';
     }
 
+    public function getPhotoUrlAttribute(): string 
+    {
+        return $this->user?->avatar_url ?? '';
+    }
+
      /**
      * CPF formatado
      */

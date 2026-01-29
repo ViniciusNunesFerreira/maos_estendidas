@@ -154,13 +154,15 @@ class ProfileController extends Controller
     public function uploadPhoto(Request $request): JsonResponse
     {
         $request->validate([
-            'photo' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            'photo' => 'required|image|max:5120',
         ]);
 
         try {
-            $filho = $request->user()->filho;
+            $photoUrl = null;
 
-            if (!$filho) {
+            $user = $request->user();
+
+            if (!$user) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Perfil não encontrado',
@@ -168,20 +170,25 @@ class ProfileController extends Controller
             }
 
             // Deletar foto antiga se existir
-            if ($filho->photo_url) {
-                Storage::disk('public')->delete($filho->photo_url);
+            if ($user->avatar_url) {
+                Storage::disk('public')->delete($user->avatar_url);
             }
 
-            // Salvar nova foto
-            $path = $request->file('photo')->store('filhos/photos', 'public');
+            
+            if ($request->file('photo')) {
+                // Salvar nova foto
+                 $path = $request->file('photo')->store('filhos/photos', 'public');
+                // Gera URL completa (requer php artisan storage:link)
+                $photoUrl = Storage::url($path);
+            }
 
-            $filho->update(['photo_url' => $path]);
+            $user->update(['avatar_url' => $photoUrl]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Foto atualizada com sucesso',
                 'data' => [
-                    'photo_url' => Storage::disk('public')->url($path),
+                    'photo_url' => Storage::disk('public')->url($photoUrl),
                 ],
             ]);
 
