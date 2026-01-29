@@ -5,7 +5,7 @@
             <div class="flex items-center space-x-4">
 
                 @if($filho->photo_url)
-                    <img src="{{ Storage::url($filho->photo_url) }}" 
+                    <img src="{{ asset($filho->photo_url) }}" 
                             alt="{{ $filho->fullname }}" 
                         class="h-16 w-16 rounded-full object-cover">
                 @else

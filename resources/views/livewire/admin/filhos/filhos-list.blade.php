@@ -128,7 +128,7 @@
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 @if($filho->photo_url)
-                                    <img src="{{ Storage::url($filho->photo_url) }}" 
+                                    <img src="{{ asset($filho->photo_url) }}" 
                                          alt="{{ $filho->fullname }}" 
                                         class="h-10 w-10 rounded-full">
                                 @else
