@@ -45,10 +45,10 @@ class BalanceController extends Controller
             'data' => [
                 // Informações de crédito
                 'credit_limit' => (float) $filho->credit_limit,
-                'available_credit' => (float) $filho->available_credit,
-                'used_credit' => (float) ($filho->credit_limit - $filho->available_credit),
+                'available_credit' => (float) $filho->credit_available,
+                'used_credit' => (float) ($filho->credit_limit - $filho->credit_available),
                 'credit_percentage_used' => $filho->credit_limit > 0 
-                    ? round((($filho->credit_limit - $filho->available_credit) / $filho->credit_limit) * 100, 2)
+                    ? round((($filho->credit_limit - $filho->credit_available) / $filho->credit_limit) * 100, 2)
                     : 0,
                 
                 // Informações de dívida
