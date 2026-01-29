@@ -191,7 +191,7 @@ class Filho extends Model
             return $path;
         }
 
-        return asset(Storage::url($path));
+        return asset($path);
     }
 
      /**
