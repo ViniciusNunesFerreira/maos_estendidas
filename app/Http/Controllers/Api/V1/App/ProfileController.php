@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\App\UpdateProfileRequest;
 use App\Http\Requests\App\UpdatePasswordRequest;
 use App\Http\Resources\FilhoResource;
-use App\Services\FilhoService;
+use App\Services\Fiho\FilhoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
