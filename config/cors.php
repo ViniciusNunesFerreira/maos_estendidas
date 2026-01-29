@@ -31,6 +31,7 @@ return [
         'https://maosestendidas.paitonayede.com.br', // API (útil para o PDV)
         'http://localhost:3000',             
         'http://localhost:5173',
+        'http://localhost:1420',
     ],
 
     'allowed_origins_patterns' => [],

@@ -114,6 +114,7 @@ class InvoiceController extends Controller
         $filho = auth()->user()->filho;
         
         $query = $filho->invoices()
+            ->where('type', 'subscription')
             ->with(['subscription'])
             ->orderByDesc('due_date');
 
