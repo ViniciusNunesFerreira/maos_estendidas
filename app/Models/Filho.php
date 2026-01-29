@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
 
 class Filho extends Model
 {
@@ -70,7 +71,7 @@ class Filho extends Model
         'status' => 'inactive',
     ];
 
-    protected $appends = ['age', 'is_mensalidade_due', 'status_label', 'status_color'];
+    protected $appends = ['age', 'is_mensalidade_due', 'status_label', 'status_color', 'photo_url'];
 
     // Relacionamentos
     public function user(): BelongsTo
@@ -181,7 +182,20 @@ class Filho extends Model
 
     public function getPhotoUrlAttribute(): string 
     {
-        return $this->user?->avatar_url ?? '';
+        $path = $this->user?->avatar_url;
+
+        if (!$path) {
+            return '';
+        }
+
+        // Se o path já for uma URL completa (ex: S3 ou link externo)
+        if (filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        // Se for um caminho local, gera a URL pública correta do Storage
+        // Isso resolve o erro de carregamento no Profile
+        return asset(Storage::url($path));
     }
 
      /**

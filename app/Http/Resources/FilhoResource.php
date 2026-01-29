@@ -23,7 +23,7 @@ class FilhoResource extends JsonResource
             'status' => $this->status,
             'birth_date' => $this->birth_date, // Importante para o formatUtils.date
             'mother_name' => $this->mother_name,
-            'photo_url' => $this->photo_url ? asset($this->photo_url) : null,
+            'photo_url' => $this->photo_url,
             'credit_limit' => (float) $this->credit_limit,
             'credit_used' => (float) $this->credit_used,
             'credit_available' => (float) ($this->credit_limit - $this->credit_used),
@@ -32,6 +32,7 @@ class FilhoResource extends JsonResource
             'user' => [
                 'name' => $this->user->name,
                 'email' => $this->user->email,
+                'avatar_url'
             ],
 
             // Incluindo a relação de assinatura para preencher o card de plano
