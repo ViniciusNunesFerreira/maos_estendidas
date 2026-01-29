@@ -621,11 +621,10 @@ class PaymentController extends Controller
                 ],
             ];
 
-            // Usar ExternalPaymentService (novo)
+            // Usar ExternalPaymentService (novo) //Para adicionar o parcelamento adicionar instalments no metodo
             $result = $this->externalPaymentService->createOrderCardPayment(
                 $order,
                 $validated['card_token'],
-                $validated['installments'],
                 $payer
             );
 
@@ -635,8 +634,6 @@ class PaymentController extends Controller
                 'data' => $result,
             ]);
 
-        } catch (\App\Exceptions\PaymentException $e) {
-            return $e->render();
         } catch (\Exception $e) {
             Log::error('Erro ao criar pagamento com Cartão para Order', [
                 'order_id' => $order->id,

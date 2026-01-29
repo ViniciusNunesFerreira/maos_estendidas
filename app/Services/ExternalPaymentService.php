@@ -200,7 +200,6 @@ class ExternalPaymentService
         Order $order,
         string $cardToken,
         string $paymentMethodId,
-        int $installments = 1
     ): array {
         DB::beginTransaction();
         try {
@@ -210,7 +209,6 @@ class ExternalPaymentService
                 $order,
                 $cardToken,
                 $paymentMethodId,
-                $installments
             );
             
             DB::commit();
@@ -224,7 +222,7 @@ class ExternalPaymentService
                 'message' => $this->getCardPaymentMessage($mpResult['status']),
                 'card_last_digits' => $mpResult['card_last_digits'] ?? '',
                 'card_brand' => $mpResult['card_brand'] ?? '',
-                'installments' => $installments,
+                'installments' => 1,
             ];
             
         } catch (\Exception $e) {

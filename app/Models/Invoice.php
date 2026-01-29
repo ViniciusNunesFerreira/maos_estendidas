@@ -144,7 +144,7 @@ class Invoice extends Model
 
     public function getIsPaidAttribute(): bool
     {
-        return $this->status === 'paid' || $this->remaining_amount <= 0.009;
+        return $this->status === 'paid' && $this->remaining_amount <= 0.99;
     }
 
     public function getIsOverdueAttribute(): bool
@@ -178,13 +178,14 @@ class Invoice extends Model
         };
     }
 
+    
     // =========================================================
     // SCOPES
     // =========================================================
 
     public function scopePaid($query)
     {
-        return $query->where('status', 'paid')->orWhere('remaining_amount', '<=', 0.009);
+        return $query->where('status', 'paid');
     }
 
     public function scopePending($query)
