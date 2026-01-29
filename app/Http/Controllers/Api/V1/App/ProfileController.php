@@ -38,7 +38,7 @@ class ProfileController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => FilhoResource::collection($filho),
+            'data' => new FilhoResource($filho),
         ]);
     }
 
