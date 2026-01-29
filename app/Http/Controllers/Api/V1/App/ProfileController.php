@@ -50,7 +50,9 @@ class ProfileController extends Controller
     public function update(UpdateProfileRequest $request): JsonResponse
     {
         try {
-            $filho = $request->user()->filho;
+            $user = $request->user();
+
+            $filho = $user?->filho;
 
             if (!$filho) {
                 return response()->json([
@@ -62,29 +64,15 @@ class ProfileController extends Controller
             $data = $request->validated();
 
             // Atualizar dados do filho
-            $filho->update([
-                'name' => $data['name'] ?? $filho->name,
-                'phone' => $data['phone'] ?? $filho->phone,
-                'birth_date' => $data['birth_date'] ?? $filho->birth_date,
-                'mother_name' => $data['mother_name'] ?? $filho->mother_name,
+            $user->update([
+                'name' => $data['name'] ?? $user->name,
+                'email' => $data['email'] ?? $user->email,
             ]);
 
-            // Atualizar endereço se fornecido
-            if (isset($data['street'])) {
-                $filho->update([
-                    'street' => $data['street'],
-                    'number' => $data['number'],
-                    'complement' => $data['complement'] ?? null,
-                    'neighborhood' => $data['neighborhood'],
-                    'city' => $data['city'],
-                    'state' => $data['state'],
-                    'zipcode' => $data['zipcode'],
-                ]);
-            }
-
+        
             // Atualizar email do usuário se fornecido
-            if (isset($data['email'])) {
-                $filho->user->update(['email' => $data['email']]);
+            if (isset($data['phone'])) {
+                $filho->update(['phone' => preg_replace('/\D/', '',  $data['phone'])]);
             }
 
             return response()->json([
