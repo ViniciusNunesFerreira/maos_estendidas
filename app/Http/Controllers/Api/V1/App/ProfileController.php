@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\App\UpdateProfileRequest;
 use App\Http\Requests\App\UpdatePasswordRequest;
 use App\Http\Resources\FilhoResource;
-use App\Services\Fiho\FilhoService;
+//use App\Services\Filho\FilhoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Storage;
 
 class ProfileController extends Controller
 {
-    public function __construct(
+    /*public function __construct(
         private readonly FilhoService $filhoService
-    ) {}
+    ) {}*/
 
     /**
      * Exibir perfil do filho autenticado
