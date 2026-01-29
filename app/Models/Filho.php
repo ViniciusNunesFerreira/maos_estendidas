@@ -183,18 +183,14 @@ class Filho extends Model
     public function getPhotoUrlAttribute(): string 
     {
         $path = $this->user?->avatar_url;
-
         if (!$path) {
             return '';
         }
-
         // Se o path já for uma URL completa (ex: S3 ou link externo)
         if (filter_var($path, FILTER_VALIDATE_URL)) {
             return $path;
         }
 
-        // Se for um caminho local, gera a URL pública correta do Storage
-        // Isso resolve o erro de carregamento no Profile
         return asset(Storage::url($path));
     }
 
