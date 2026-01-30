@@ -256,7 +256,7 @@ class ExternalPaymentService
             
 
             // Chamar MP
-            $mpData = $this->buildInvoiceCardPaymentData($invoice, $cardToken, $payer, $paymentMethodId, $installments);
+            $mpData = $this->buildInvoiceCardPaymentData($invoice, $cardToken, $payer, $paymentMethodId, 1);
             $mpResult = $this->checkoutTransparente->createCardPaymentForInvoice($invoice, $mpData);
             
             // VERIFICAÇÃO IMEDIATA
@@ -275,12 +275,11 @@ class ExternalPaymentService
                 'card_last_digits' => $mpResult['card_last_digits'] ?? '',
                 'card_brand' => $mpResult['card_brand'] ?? '',
                 'approved' => $mpResult['approved'],
-                'installments' => $installments,
+                'installments' => 1,
             ];
             
         } catch (\Exception $e) {
-            DB::rollBack();
-            
+        
             Log::error('Erro ao processar cartão para Invoice', [
                 'invoice_id' => $invoice->id,
                 'error' => $e->getMessage(),
