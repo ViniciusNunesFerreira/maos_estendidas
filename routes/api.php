@@ -184,7 +184,7 @@ Route::prefix('v1')->group(function () {
             });
 
             // Payments - Mercado Pago (Mantido para retrocompatibilidade)
-            Route::prefix('payments')->group(function () {
+            Route::prefix('payments')->middleware(['throttle:3,1'])->group(function () {
                 Route::post('/create-pix', [PaymentController::class, 'createPixPayment']);
                 Route::post('/create-card', [PaymentController::class, 'createCardPayment']);
                 

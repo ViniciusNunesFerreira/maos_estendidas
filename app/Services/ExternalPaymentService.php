@@ -38,13 +38,6 @@ class ExternalPaymentService
     // PIX - ORDERS
     // =========================================================
     
-    /**
-     * Criar pagamento PIX para Order
-     * 
-     * @param Order $order
-     * @return array Dados do PIX (QR Code, etc)
-     * @throws PaymentException
-     */
     public function createOrderPixPayment(Order $order): array
     {
         // Validação: Order já paga
@@ -95,16 +88,6 @@ class ExternalPaymentService
     // PIX - INVOICES
     // =========================================================
     
-    /**
-     * Criar pagamento PIX para Invoice
-     * 
-     * 🚨 REGRA CRÍTICA: Pagamento de fatura restaura limite de crédito
-     * 
-     * @param Invoice $invoice
-     * @return array Dados do PIX
-     * @throws PaymentException
-     * @throws BusinessRuleException
-     */
     public function createInvoicePixPayment(Invoice $invoice): array
     {
         // Validação: Invoice já paga
@@ -126,39 +109,39 @@ class ExternalPaymentService
         }
         
         try {
-           
-            return DB::transaction(function () use ($invoice) {
-                // 1. LOCK: Seleciona a Invoice e trava o registro para outros processos
-                $invoice = Invoice::where('id', $invoice->id)->lockForUpdate()->first();
 
-                $amountToPay = $invoice->total_amount - $invoice->paid_amount;
-
-              
                 $intent = PaymentIntent::where('invoice_id', $invoice->id)
+                    ->where('payment_method', 'pix')
                     ->where('status', 'pending')
                     ->where('pix_expiration', '>', now())
                     ->first();
 
                 if ($intent) {
-                    Log::info('PIX Recuperado (Idempotência)', ['intent_id' => $intent->id]);
-                    return $this->formatResponse($intent); // Retorne os dados que já existem
+                    return $this->formatResponse($intent);
                 }
 
+                $amountToPay = $invoice->total_amount - $invoice->paid_amount;
 
                 // 4. Chamar Mercado Pago
                 $mpData = $this->buildInvoicePaymentData($invoice, $amountToPay);
                 $mpResult = $this->checkoutTransparente->createPixPaymentForInvoice($invoice, $mpData);
 
-                // 5. UPDATE OR CREATE com tratamento de concorrência
-                // Usamos o mp_payment_id como âncora de segurança
+           
+            return DB::transaction(function () use ($invoice, $mpResult, $mpData) {
+
+                $invoice->refresh()->lockForUpdate();
+
                 $paymentIntent = PaymentIntent::updateOrCreate(
                     ['mp_payment_id' => $mpResult['payment_id']], 
                     [
                         'invoice_id' => $invoice->id,
+                        'payment_method' => 'pix',
+                        'integration_type' => 'checkout',
                         'status' => 'pending',
                         'pix_qr_code' => $mpResult['qr_code'],
                         'pix_qr_code_base64' => $mpResult['qr_code_base64'],
                         'pix_expiration' => $mpResult['expiration_date'],
+                        'mp_request' => $mpData,
                         'mp_response' => $mpResult,
                     ]
                 );
@@ -199,6 +182,7 @@ class ExternalPaymentService
     public function createOrderCardPayment(
         Order $order,
         string $cardToken,
+        $payer,
         string $paymentMethodId,
     ): array {
         DB::beginTransaction();
@@ -208,8 +192,15 @@ class ExternalPaymentService
             $mpResult = $this->checkoutTransparente->createCardPayment(
                 $order,
                 $cardToken,
+                $payer,
                 $paymentMethodId,
             );
+
+            // VERIFICAÇÃO IMEDIATA
+            if (($mpResult['status'] ?? '') === 'approved') {
+                $intent = PaymentIntent::find($mpResult['payment_intent_id']);
+                $this->processPaymentConfirmation($intent, $mpResult['mp_response'] ?? []);
+            }
             
             DB::commit();
             
@@ -245,37 +236,36 @@ class ExternalPaymentService
     // CARTÃO - INVOICES
     // =========================================================
     
-    /**
-     * Criar pagamento com Cartão para Invoice
-     */
     public function createInvoiceCardPayment(
         Invoice $invoice,
         string $cardToken,
+        $payer,
         string $paymentMethodId,
         int $installments = 1
     ): array {
+        if ($invoice->status === 'paid') {
+            throw new PaymentException('Esta fatura já foi Paga.', 400);
+        }
+
         DB::beginTransaction();
         try {
             
             $amountToPay = $invoice->total_amount - $invoice->paid_amount;
             
-            // Similar ao PIX, criar Payment e PaymentIntent
-            $payment = Payment::create([
-                'invoice_id' => $invoice->id,
-                'method' => 'credito',
-                'amount' => $amountToPay,
-                'status' => 'pending',
-            ]);
-            
-            $paymentIntent = PaymentIntent::create([
-                'payment_id' => $payment->id,
-                'integration_type' => 'checkout',
-                'payment_method' => 'credit_card',
-                'amount' => $amountToPay,
-                'status' => 'created',
-                'installments' => $installments,
-            ]);
-            
+            $paymentIntent = PaymentIntent::firstOrCreate(
+                [
+                    'invoice_id' => $invoice->id,
+                    'status' => 'created', // Ou 'pending'
+                    'payment_method' => 'credit_card',
+                    'integration_type' => 'checkout',
+                ],
+                [
+                    'amount' => $amountToPay,
+                    'installments' => $installments,
+                ]
+            );
+
+                       
             // Chamar MP
             $mpData = $this->buildInvoiceCardPaymentData($invoice, $amountToPay, $cardToken, $paymentMethodId, $installments);
             $mpResult = $this->checkoutTransparente->createCardPaymentForInvoice($invoice, $mpData);
@@ -284,6 +274,7 @@ class ExternalPaymentService
             $paymentIntent->update([
                 'mp_payment_id' => $mpResult['payment_id'],
                 'status' => $mpResult['status'],
+                'status_detail' => $mpResult['status_detail'] ?? null,
                 'card_last_digits' => $mpResult['card_last_digits'] ?? null,
                 'card_brand' => $mpResult['card_brand'] ?? null,
                 'mp_response' => $mpResult,
@@ -326,125 +317,152 @@ class ExternalPaymentService
     /**
      * Processar webhook de pagamento aprovado
      * 
-     * 🔴 IMPORTANTE: Aqui acontece a restauração de limite!
+     * IMPORTANTE: Aqui acontece a restauração de limite!
      * 
-     * @param string $mpPaymentId ID do pagamento no Mercado Pago
-     * @return void
      */
-    public function processPaymentApproved(string $mpPaymentId): void
+
+    public function processPaymentConfirmation(PaymentIntent $intent, array $mpData): void
     {
-        $paymentIntent = PaymentIntent::where('mp_payment_id', $mpPaymentId)->first();
-        
-        if (!$paymentIntent) {
-            Log::warning('Payment Intent não encontrado para webhook', [
-                'mp_payment_id' => $mpPaymentId,
-            ]);
-            return;
-        }
-        
-        DB::beginTransaction();
-        try {
+        // 1. Lock para evitar Race Condition (Webhook vs Usuário atualizando tela)
+        DB::transaction(function () use ($intent, $mpData) {
             
-            // Atualizar PaymentIntent
-            $paymentIntent->update([
-                'status' => 'approved',
-                'approved_at' => now(),
+            // Bloqueia o registro para leitura/escrita
+            $intent->refresh()->lockForUpdate();
+
+            // IDEMPOTÊNCIA: Se já estiver aprovado e processado, sai.
+            if ($intent->status === 'approved' && $intent->payment_id) {
+                return;
+            }
+
+            // Validar status do payload do MP
+            $status = $mpData['status'] ?? $intent->status;
+            if ($status !== 'approved') {
+                // Se não for aprovado, apenas atualiza o status do intent e sai
+                $intent->update([
+                    'status' => $status,
+                    'status_detail' => $mpData['status_detail'] ?? null,
+                    'mp_response' => $mpData
+                ]);
+                return;
+            }
+
+
+            // 2. Atualizar Intent
+            $intent->markAsApproved($mpData['transaction_amount'] ?? $intent->amount);
+            $intent->update([
+                'mp_response' => $mpData,
+                'mp_payment_id' => $mpData['id'] ?? $intent->mp_payment_id,
             ]);
+
+            // 3. Criar ou Recuperar o Pagamento Financeiro
+            // Verifica se já existe Payment com este ID do gateway para evitar duplicação
+            $payment = Payment::where('gateway_transaction_id', (string) $mpData['id'])->first();
+
+            if (!$payment) {
+                $payment = Payment::create([
+                    'order_id' => $intent->order_id,
+                    'invoice_id' => $intent->invoice_id,
+                    'method' => $intent->payment_method === 'pix' ? 'pix' : 'credito',
+                    'amount' => $mpData['transaction_amount'],
+                    'status' => 'confirmed',
+                    'confirmed_at' => now(),
+                    'installments' => $intent->installments ?? $mpData['installments'] ?? 1,
+                    
+                    // Dados de Auditoria MP
+                    'gateway_name' => 'mercadopago',
+                    'gateway_transaction_id' => $mpData['id'],
+                    'authorized_at' => Carbon::parse($mpData['date_approved'] ?? now()),
+                    'mp_payment_id' => $mpData['id'],
+                    'mp_payment_intent_id' => $intent->id,
+                    'mp_status' => $mpData['status'],
+                    'mp_status_detail' => $mpData['status_detail'] ?? null,
+                    'mp_payment_type_id' => $mpData['payment_type_id'] ?? null,
+                    'mp_payment_method_id' => $mpData['payment_method_id'] ?? null,
+                    'mp_transaction_amount' => $mpData['transaction_amount'],
+                    'mp_response' => $mpData,
+                ]);
+                
+                // Vincula ao Intent
+                $intent->payment()->associate($payment);
+                $intent->save();
+            }
+
+            // 4. Efeitos Colaterais (Baixa de Pedido/Fatura + Crédito)
             
-            // Se for Order
-            if ($paymentIntent->order_id) {
-                $this->processOrderPaymentApproved($paymentIntent);
+            if ($intent->order_id) {
+                $this->finalizeOrder($intent->order, $payment);
             }
             
-            // Se for Invoice
-            if ($paymentIntent->payment?->invoice_id) {
-                $this->processInvoicePaymentApproved($paymentIntent);
+            if ($intent->invoice_id) {
+                $this->finalizeInvoice($intent->invoice, $payment, $intent);
             }
-            
-            DB::commit();
-            
-        } catch (\Exception $e) {
-            DB::rollBack();
-            
-            Log::error('Erro ao processar webhook de pagamento aprovado', [
-                'mp_payment_id' => $mpPaymentId,
-                'payment_intent_id' => $paymentIntent->id,
-                'error' => $e->getMessage(),
+
+            Log::info('Pagamento processado com sucesso (Centralizado)', [
+                'intent_id' => $intent->id,
+                'payment_id' => $payment->id
             ]);
+        });
+    }
+
+    /**
+     * Lógica específica de finalização de Pedido
+     */
+    private function finalizeOrder(Order $order, Payment $payment): void
+    {
+        if (!$order->isPaid()) {
+            $order->markAsPaid();
+            $order->update([
+                'payment_intent_id' => $payment->mp_payment_intent_id,
+                'awaiting_external_payment' => false
+            ]);
+            // Dispara evento de pedido pago
         }
     }
-    
+
     /**
-     * Processar aprovação de pagamento de Order
+     * Lógica específica de finalização de Fatura + CRÉDITO
      */
-    protected function processOrderPaymentApproved(PaymentIntent $paymentIntent): void
+    private function finalizeInvoice(Invoice $invoice, Payment $payment, PaymentIntent $intent): void
     {
-        $order = $paymentIntent->order;
+        // Trava a invoice para recalculo
+        $invoice = Invoice::where('id', $invoice->id)->lockForUpdate()->first();
+       
+        $currentPaid = $invoice->payments()
+            ->where('status', 'confirmed')
+            ->where('id', '!=', $payment->id) 
+            ->sum('amount');
+            
+        // Recalcular total pago incluindo o atual
+        $totalPaid = $currentPaid + $payment->amount;
         
-        // Atualizar Payment (se existir)
-        if ($paymentIntent->payment) {
-            $paymentIntent->payment->update([
-                'status' => 'confirmed',
-                'confirmed_at' => now(),
-            ]);
-        }
+        $invoice->paid_amount = $totalPaid;
         
-        // Atualizar Order
-        $order->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-            'is_invoiced' => true, // ✅ Pago com dinheiro real, não vai para fatura
-            'awaiting_external_payment' => false,
-        ]);
-        
-        Log::info('Pagamento de Order aprovado via webhook', [
-            'order_id' => $order->id,
-            'order_number' => $order->order_number,
-            'amount' => $paymentIntent->amount,
-        ]);
-    }
-    
-    /**
-     * Processar aprovação de pagamento de Invoice
-     * 
-     * 🔄 AQUI ACONTECE A MÁGICA: RESTAURAÇÃO DO LIMITE!
-     */
-    protected function processInvoicePaymentApproved(PaymentIntent $paymentIntent): void
-    {
-        $payment = $paymentIntent->payment;
-        $invoice = $payment->invoice;
-        
-        // Atualizar Payment
-        $payment->update([
-            'status' => 'confirmed',
-            'confirmed_at' => now(),
-        ]);
-        
-        // Atualizar Invoice
-        $invoice->paid_amount = $invoice->paid_amount + $paymentIntent->amount;
-        
-        if ($invoice->paid_amount >= $invoice->total_amount) {
+        if ($invoice->paid_amount >= ($invoice->total_amount - 0.01)) { 
             $invoice->status = 'paid';
             $invoice->paid_at = now();
+            $invoice->awaiting_external_payment = false;
         } else {
             $invoice->status = 'partial';
         }
         
         $invoice->save();
-        
-        // 🔄 RESTAURAR LIMITE DE CRÉDITO
+
+        // === PONTO CRÍTICO: RESTAURAÇÃO DE CRÉDITO ===
+        // Só restaura se a fatura foi totalmente paga
         if ($invoice->status === 'paid') {
-            $this->creditRestoration->restoreCredit($invoice->filho, $invoice);
+            try {
+                $this->creditRestoration->restoreCredit($invoice->filho, $invoice);
+                Log::info("Crédito restaurado para invoice {$invoice->id}");
+            } catch (\Exception $e) {
+                
+                Log::critical('CRÍTICO: Pagamento confirmado, mas falha ao restaurar crédito.', [
+                    'invoice_id' => $invoice->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
-        
-        Log::info('Pagamento de Invoice aprovado via webhook', [
-            'invoice_id' => $invoice->id,
-            'invoice_number' => $invoice->invoice_number,
-            'amount' => $paymentIntent->amount,
-            'invoice_fully_paid' => $invoice->status === 'paid',
-        ]);
     }
-    
+
     // =========================================================
     // HELPERS
     // =========================================================

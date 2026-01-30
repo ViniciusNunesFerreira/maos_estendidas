@@ -581,6 +581,7 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'card_token' => 'required|string',
+            'payment_method_id' => 'required|string',
             'installments' => 'required|integer|min:1|max:12',
             'payer' => 'sometimes|array',
             'payer.email' => 'required_with:payer|email',
@@ -627,7 +628,8 @@ class PaymentController extends Controller
             $result = $this->externalPaymentService->createOrderCardPayment(
                 $order,
                 $validated['card_token'],
-                $payer
+                $payer,
+                $validated['payment_method_id']
             );
 
             return response()->json([

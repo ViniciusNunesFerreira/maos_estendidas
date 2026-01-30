@@ -25,47 +25,50 @@ use Exception;
 class CheckoutTransparenteService
 {
     public function __construct(
-        protected MercadoPagoService $mercadoPago
+        protected MercadoPagoService $mercadoPago,
+        protected ExternalPaymentService $externalPaymentService
     ) {}
 
     // =========================================================
     // PIX - ORDERS
     // =========================================================
 
-    /**
-     * Criar pagamento PIX para Order
-     * 
-     * @param Order $order Pedido a ser pago
-     * @return array Dados do PIX (QR Code, payment_intent_id, etc)
-     * @throws PaymentException
-     * @throws MercadoPagoException
-     */
+   
     public function createPixPayment(Order $order): array
     {
-        return DB::transaction(function () use ($order) {
-            // Validar pedido
-            $this->validateOrder($order);
+        $intent =  DB::transaction(function () use ($order) {
+                    $this->validateOrder($order);
 
-            // Preparar dados para Mercado Pago
+                    return PaymentIntent::firstOrCreate(
+                        ['order_id' => $order->id, 'status' => 'pending'],
+                        ['integration_type' => 'checkout', 'payment_method' => 'pix', 'amount' => $order?->total ??  0]);
+        });
+
+        try {
             $mpData = $this->buildPixPaymentData($order);
+            $mpResponse = $this->mercadoPago->createPayment($mpData);
 
-            try {
-                // Criar payment no Mercado Pago
-                $mpResponse = $this->mercadoPago->createPayment($mpData);
+            // Validar resposta
+            if (!isset($mpResponse['id'])) {
+                throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
+            }
 
-                // Validar resposta
-                if (!isset($mpResponse['id'])) {
-                    throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
-                }
+        } catch (Exception $e) {
+            // Atualiza falha
+            $intent->update(['status' => 'failed', 'error' => $e->getMessage()]);
+            throw $e;
+        }
 
-                // Criar PaymentIntent
-                $intent = $this->createPaymentIntent(
-                    order: $order,
-                    invoice: null,
-                    paymentMethod: 'pix',
-                    mpRequest: $mpData,
-                    mpResponse: $mpResponse
-                );
+
+        return DB::transaction(function () use ($intent, $order, $mpResponse) {
+
+
+                $intent->update([
+                    'mp_payment_id' => $mpResponse['id'],
+                    'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
+                    'mp_response' => $mpResponse, 
+                ]);
+                
 
                 // Atualizar order
                 $order->update([
@@ -90,13 +93,7 @@ class CheckoutTransparenteService
                     ],
                 ];
 
-            } catch (MercadoPagoException $e) {
-                Log::error('Erro Mercado Pago ao criar PIX para Order', [
-                    'order_id' => $order->id,
-                    'error' => $e->getMessage(),
-                ]);
-                throw $e;
-            }
+            
         });
     }
 
@@ -106,23 +103,23 @@ class CheckoutTransparenteService
 
     public function createPixPaymentForInvoice(Invoice $invoice, array $mpData): array
     {
+        $existingIntent =  DB::transaction(function () use ($invoice) {
+                    $this->validateInvoice($invoice);
+
+                    return PaymentIntent::where('invoice_id', $invoice->id)
+                            ->where('payment_method', 'pix')
+                            ->where('status', 'pending')
+                            ->where('pix_expiration', '>', now())
+                            ->first();
+        });
+
+        // --- VERIFICAÇÃO DE IDEMPOTÊNCIA ---
+        if ($existingIntent && isset($existingIntent->mp_response['id'])) {
+            return $this->formatMpResponse($existingIntent->mp_response);
+        }
+
         return DB::transaction(function () use ($invoice, $mpData) {
-            // 1. Validar invoice
-            $this->validateInvoice($invoice);
-
-            // --- VERIFICAÇÃO DE IDEMPOTÊNCIA ---
-            $existingIntent = PaymentIntent::where('invoice_id', $invoice->id)
-                ->where('payment_method', 'pix')
-                ->where('status', 'pending')
-                ->where('pix_expiration', '>', now())
-                ->first();
-
-            if ($existingIntent && isset($existingIntent->mp_response['id'])) {
-                Log::info('Reutilizando PIX existente para Invoice', ['invoice_id' => $invoice->id]);
-                return $this->formatMpResponse($existingIntent->mp_response, $existingIntent);
-            }
-            // ---------------------------------------------
-
+           
             try {
                 // Criar payment no Mercado Pago
                 $mpResponse = $this->mercadoPago->createPayment($mpData);
@@ -130,31 +127,8 @@ class CheckoutTransparenteService
                 if (!isset($mpResponse['id'])) {
                     throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
                 }
-
-                // 2. Usar UPDATE OR CREATE para evitar o erro de duplicidade
-                // Caso o mp_payment_id já exista (por uma falha de rede anterior), ele apenas atualiza
-                $intent = PaymentIntent::updateOrCreate(
-                    ['mp_payment_id' => $mpResponse['id']], // Chave de busca (Unique)
-                    [
-                        'payment_method' => 'pix',
-                        'amount' => $mpData['transaction_amount'],
-                        'integration_type' => 'checkout',
-                        'status' => 'pending',
-                        'pix_qr_code' => $mpResponse['point_of_interaction']['transaction_data']['qr_code'] ?? null,
-                        'pix_qr_code_base64' => $mpResponse['point_of_interaction']['transaction_data']['qr_code_base64'] ?? null,
-                        'pix_expiration' => $this->getPixExpirationDate($mpResponse),
-                        'mp_request' => $mpData,
-                        'mp_response' => $mpResponse,
-                    ]
-                );
-
-                Log::info('PIX criado/atualizado para Invoice', [
-                    'invoice_id' => $invoice->id,
-                    'payment_intent_id' => $intent->id,
-                    'mp_payment_id' => $mpResponse['id'],
-                ]);
-
-                return $this->formatMpResponse($mpResponse, $intent);
+                
+                return $this->formatMpResponse($mpResponse);
 
             } catch (MercadoPagoException $e) {
                 Log::error('Erro Mercado Pago ao criar PIX para Invoice', [
@@ -169,18 +143,17 @@ class CheckoutTransparenteService
     /**
      * Helper para formatar o retorno e evitar código duplicado
      */
-    private function formatMpResponse(array $mpResponse, $intent): array
+    private function formatMpResponse(array $mpResponse): array
     {
         return [
             'success' => true,
-            'payment_intent_id' => $intent->id,
             'payment_id' => $mpResponse['id'], 
             'mp_payment_id' => $mpResponse['id'],
             'status' => $mpResponse['status'] ?? 'pending',
             'qr_code' => $mpResponse['point_of_interaction']['transaction_data']['qr_code'] ?? null,
             'qr_code_base64' => $mpResponse['point_of_interaction']['transaction_data']['qr_code_base64'] ?? null,
             'ticket_url' => $mpResponse['point_of_interaction']['transaction_data']['ticket_url'] ?? '',
-            'expiration_date' => $intent->pix_expiration ? $intent->pix_expiration->toIso8601String() : $this->getPixExpirationDate($mpResponse),
+            'expiration_date' => $this->getPixExpirationDate($mpResponse),
         ];
     }
 
@@ -192,10 +165,11 @@ class CheckoutTransparenteService
     public function createCardPayment(
         Order $order,
         string $cardToken,
+        $payer,
         string $paymentMethodId,
         int $installments = 1
     ): array {
-        return DB::transaction(function () use ($order, $cardToken, $paymentMethodId, $installments) {
+        return DB::transaction(function () use ($order, $cardToken, $payer, $paymentMethodId, $installments) {
             // Validar pedido
             $this->validateOrder($order);
 
@@ -212,11 +186,17 @@ class CheckoutTransparenteService
             $mpData = $this->buildCardPaymentData(
                 $order,
                 $cardToken,
+                $payer,
                 $paymentMethodId,
                 $installments
             );
 
             try {
+
+                $intent = PaymentIntent::where('order_id', $order->id)
+                                ->whereIn('status', ['created', 'pending', 'rejected'])
+                                ->first();
+
                 // Criar payment no Mercado Pago
                 $mpResponse = $this->mercadoPago->createPayment($mpData);
 
@@ -225,14 +205,23 @@ class CheckoutTransparenteService
                     throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
                 }
 
-                // Criar PaymentIntent
-                $intent = $this->createPaymentIntent(
-                    order: $order,
-                    invoice: null,
-                    paymentMethod: 'credit_card',
-                    mpRequest: $mpData,
-                    mpResponse: $mpResponse
-                );
+
+                if (!$intent) {
+                    // Criar PaymentIntent
+                    $intent =  $this->createPaymentIntent(
+                        order: $order,
+                        invoice: null,
+                        paymentMethod: 'credit_card',
+                        mpRequest: $mpData,
+                        mpResponse: $mpResponse
+                    );
+                }else {
+                    $intent->update([
+                        'mp_payment_id' => $mpResponse['id'],
+                        'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
+                        'mp_response' => $mpResponse, // Guarda o motivo da rejeição aqui
+                    ]);
+                }
 
                 // Atualizar order
                 $order->update([
@@ -251,9 +240,9 @@ class CheckoutTransparenteService
                 ]);
 
                 // Se já foi aprovado, processar
-                if ($mpResponse['status'] === 'approved') {
+              /*  if ($mpResponse['status'] === 'approved') {
                     $this->processApprovedPayment($intent, $mpResponse);
-                }
+                }*/
 
                 return [
                     'success' => true,
@@ -293,31 +282,15 @@ class CheckoutTransparenteService
                     throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
                 }
 
-                // Criar PaymentIntent
-                $intent = $this->createPaymentIntent(
-                    order: null,
-                    invoice: $invoice,
-                    paymentMethod: 'credit_card',
-                    mpRequest: $mpData,
-                    mpResponse: $mpResponse
-                );
-
-                Log::info('Cartão criado para Invoice', [
-                    'invoice_id' => $invoice->id,
-                    'payment_intent_id' => $intent->id,
-                    'mp_payment_id' => $mpResponse['id'],
-                    'status' => $mpResponse['status'],
-                ]);
-
+               
                 // Se já foi aprovado, processar
-                if ($mpResponse['status'] === 'approved') {
+               /* if ($mpResponse['status'] === 'approved') {
                     $this->processApprovedPayment($intent, $mpResponse);
-                }
+                }*/
 
                 // Retorno padronizado (compatível com ExternalPaymentService)
                 return [
                     'success' => true,
-                    'payment_intent_id' => $intent->id,
                     'payment_id' => $mpResponse['id'], // Alias
                     'mp_payment_id' => $mpResponse['id'],
                     'status' => $mpResponse['status'],
@@ -338,13 +311,7 @@ class CheckoutTransparenteService
         });
     }
 
-    // =========================================================
-    // BUILD PAYMENT DATA
-    // =========================================================
-
-    /**
-     * Construir dados do pagamento PIX para Order
-     */
+    
     protected function buildPixPaymentData(Order $order): array
     {
         $filho = $order->filho;
@@ -383,6 +350,7 @@ class CheckoutTransparenteService
     protected function buildCardPaymentData(
         Order $order,
         string $cardToken,
+        $payer,
         string $paymentMethodId,
         int $installments
     ): array {
@@ -398,8 +366,8 @@ class CheckoutTransparenteService
             'payer' => [
                 'email' => $user->email,
                 'identification' => [
-                    'type' => 'CPF',
-                    'number' => preg_replace('/\D/', '', $filho->cpf),
+                    'type' => $payer['identification']['type'],
+                    'number' => preg_replace('/\D/', '', $payer['identification']['number']),
                 ],
             ],
             'notification_url' => route('api.webhooks.mercadopago'),
@@ -568,21 +536,14 @@ class CheckoutTransparenteService
         try {
             $mpResponse = $this->mercadoPago->getPayment($intent->mp_payment_id);
 
-            // Atualizar intent
-            $intent->update([
-                'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
-                'status_detail' => $mpResponse['status_detail'] ?? null,
-                'mp_response' => $mpResponse,
-            ]);
-
-            // Se foi aprovado, processar
-            if ($mpResponse['status'] === 'approved' && !$intent->is_approved) {
-                $this->processApprovedPayment($intent, $mpResponse);
+            // VERIFICAÇÃO IMEDIATA
+            if (($mpResponse['status'] ?? '') === 'approved') {
+                $this->externalPaymentService->processPaymentConfirmation($intent, $mpResponse ?? []);
             }
 
             return [
                 'success' => true,
-                'status' => $intent->status,
+                'status' => $mpResponse['status'],
                 'approved' => $intent->is_approved,
             ];
 
