@@ -421,7 +421,7 @@ class ExternalPaymentService
         if ($invoice->paid_amount >= ($invoice->total_amount - 0.01)) { 
             $invoice->status = 'paid';
             $invoice->paid_at = now();
-            $invoice->awaiting_external_payment = false;
+            
         } else {
             $invoice->status = 'partial';
         }
@@ -429,8 +429,8 @@ class ExternalPaymentService
         $invoice->save();
 
         // === PONTO CRÍTICO: RESTAURAÇÃO DE CRÉDITO ===
-        // Só restaura se a fatura foi totalmente paga
-        if ($invoice->status === 'paid') {
+        // Só restaura se a fatura foi totalmente paga e de consumo
+        if ($invoice->status === 'paid' && $invoice->type === 'consumption') {
             try {
                 $this->creditRestoration->restoreCredit($invoice->filho, $invoice);
                 Log::info("Crédito restaurado para invoice {$invoice->id}");
