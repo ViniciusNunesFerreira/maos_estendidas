@@ -268,7 +268,7 @@ class ExternalPaymentService
             return [
                 'success' => true,
                 'payment_intent_id' => $mpResult['payment_intent_id'],
-                'transaction_id' => $mpResult['payment_id'],
+                'transaction_id' => $mpResult['mp_payment_id'],
                 'status' => $mpResult['status'],
                 'status_detail' => $mpResult['status_detail'] ?? '',
                 'message' => $this->getCardPaymentMessage($mpResult['status']),
