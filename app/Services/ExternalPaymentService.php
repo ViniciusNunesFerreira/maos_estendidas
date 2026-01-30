@@ -185,7 +185,7 @@ class ExternalPaymentService
         $payer,
         string $paymentMethodId,
     ): array {
-        DB::beginTransaction();
+        
         try {
             
             // Delegar para CheckoutTransparenteService
@@ -194,6 +194,7 @@ class ExternalPaymentService
                 $cardToken,
                 $payer,
                 $paymentMethodId,
+                1
             );
 
             // VERIFICAÇÃO IMEDIATA
@@ -202,7 +203,7 @@ class ExternalPaymentService
                 $this->processPaymentConfirmation($intent, $mpResult['mp_response'] ?? []);
             }
             
-            DB::commit();
+            
             
             return [
                 'success' => true,
@@ -217,7 +218,7 @@ class ExternalPaymentService
             ];
             
         } catch (\Exception $e) {
-            DB::rollBack();
+            
             
             Log::error('Erro ao processar cartão para Order', [
                 'order_id' => $order->id,

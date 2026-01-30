@@ -234,6 +234,7 @@ class CheckoutTransparenteService
                         'status' => $mpResponse['status'],
                         'status_detail' => $mpResponse['status_detail'] ?? null,
                         'approved' => $isApproved,
+                        'mp_response' => $mpResponse
                     ];
 
                 

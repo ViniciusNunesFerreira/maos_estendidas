@@ -622,7 +622,7 @@ class PaymentController extends Controller
                 ],
             ];
 
-            \Log::debug((array) $validated );
+
 
             // Usar ExternalPaymentService (novo) //Para adicionar o parcelamento adicionar instalments no metodo
             $result = $this->externalPaymentService->createOrderCardPayment(
