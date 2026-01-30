@@ -216,6 +216,7 @@ class ExternalPaymentService
                 'message' => $this->getCardPaymentMessage($mpResult['status']),
                 'card_last_digits' => $mpResult['card_last_digits'] ?? '',
                 'card_brand' => $mpResult['card_brand'] ?? '',
+                'approved' => $mpResult['approved'],
                 'installments' => 1,
             ];
             
