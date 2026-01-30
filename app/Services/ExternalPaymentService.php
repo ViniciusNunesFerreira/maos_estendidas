@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Exceptions\PaymentException;
 use App\Exceptions\BusinessRuleException;
+use Carbon\Carbon;
+use Exception;
 
 /**
  * Serviço de Pagamentos Externos (PIX e Cartão)
