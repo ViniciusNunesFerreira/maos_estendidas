@@ -257,46 +257,67 @@ class CheckoutTransparenteService
 
     public function createCardPaymentForInvoice(Invoice $invoice, array $mpData): array
     {
-        return DB::transaction(function () use ($invoice, $mpData) {
-            // Validar invoice
-            $this->validateInvoice($invoice);
+        // Validar invoice
+        $this->validateInvoice($invoice);
 
-            try {
-                // Criar payment no Mercado Pago
-                $mpResponse = $this->mercadoPago->createPayment($mpData);
 
-                // Validar resposta
-                if (!isset($mpResponse['id'])) {
-                    throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
-                }
+        try {
+            // Criar payment no Mercado Pago
+            $mpResponse = $this->mercadoPago->createPayment($mpData);
 
-               
-                // Se já foi aprovado, processar
-               /* if ($mpResponse['status'] === 'approved') {
-                    $this->processApprovedPayment($intent, $mpResponse);
-                }*/
-
-                // Retorno padronizado (compatível com ExternalPaymentService)
-                return [
-                    'success' => true,
-                    'payment_id' => $mpResponse['id'], // Alias
-                    'mp_payment_id' => $mpResponse['id'],
-                    'status' => $mpResponse['status'],
-                    'status_detail' => $mpResponse['status_detail'] ?? null,
-                    'approved' => $mpResponse['status'] === 'approved',
-                    'card_last_digits' => $mpResponse['card']['last_four_digits'] ?? null,
-                    'card_brand' => $mpResponse['payment_type_id'] ?? null,
-                    'installments' => $mpResponse['installments'] ?? 1,
-                ];
-
-            } catch (MercadoPagoException $e) {
-                Log::error('Erro ao criar pagamento com cartão para Invoice', [
-                    'invoice_id' => $invoice->id,
-                    'error' => $e->getMessage(),
-                ]);
-                throw $e;
+            // Validar resposta
+            if (!isset($mpResponse['id'])) {
+                throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
             }
-        });
+
+            
+
+            return DB::transaction(function () use ($invoice, $mpData, $mpResponse) {
+
+                    // Busca se já existe um intent para atualizar ou cria um novo
+                    $intent = PaymentIntent::updateOrCreate(
+                        [
+                            'invoice_id' => $invoice->id,
+                            'payment_method' => 'credit_card',
+                        ],
+                        [
+                            'integration_type' => 'checkout',
+                            'amount' => $invoice?->total_amount ?? 0,
+                            'mp_payment_id' => $mpResponse['id'],
+                            'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
+                            'status_detail' => $mpResponse['status_detail'] ?? null,
+                            'mp_request' => $mpData,
+                            'mp_response' => $mpResponse,
+                            'created_at_mp' => isset($mpResponse['date_created']) 
+                                ? Carbon::parse($mpResponse['date_created']) 
+                                : now(),
+                        ]
+                    );
+
+                    
+                    $isApproved = $mpResponse['status'] === 'approved';
+            
+                    // Retorno padronizado (compatível com ExternalPaymentService)
+                    return [
+                        'success' => true,
+                        'payment_intent_id' => $intent->id, // Alias
+                        'mp_payment_id' => $mpResponse['id'],
+                        'status' => $mpResponse['status'],
+                        'status_detail' => $mpResponse['status_detail'] ?? null,
+                        'approved' => $isApproved,
+                       'mp_response' => $mpResponse
+                    ];
+
+            });
+
+        } catch (MercadoPagoException $e) {
+            Log::error('Erro ao criar pagamento com cartão para Invoice', [
+                'invoice_id' => $invoice->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+        
     }
 
     

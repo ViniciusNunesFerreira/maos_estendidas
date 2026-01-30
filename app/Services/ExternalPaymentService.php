@@ -245,56 +245,36 @@ class ExternalPaymentService
         string $cardToken,
         $payer,
         string $paymentMethodId,
-        int $installments = 1
     ): array {
+
         if ($invoice->status === 'paid') {
-            throw new PaymentException('Esta fatura já foi Paga.', 400);
+            throw new PaymentException('Esta fatura já foi Paga.', 400, 'CREATE_CARD_PAYMENT_FAILED');
         }
 
-        DB::beginTransaction();
+        
         try {
             
-            $amountToPay = $invoice->total_amount - $invoice->paid_amount;
-            
-            $paymentIntent = PaymentIntent::firstOrCreate(
-                [
-                    'invoice_id' => $invoice->id,
-                    'status' => 'created', // Ou 'pending'
-                    'payment_method' => 'credit_card',
-                    'integration_type' => 'checkout',
-                ],
-                [
-                    'amount' => $amountToPay,
-                    'installments' => $installments,
-                ]
-            );
 
-                       
             // Chamar MP
-            $mpData = $this->buildInvoiceCardPaymentData($invoice, $amountToPay, $cardToken, $paymentMethodId, $installments);
+            $mpData = $this->buildInvoiceCardPaymentData($invoice, $cardToken, $payer, $paymentMethodId, $installments);
             $mpResult = $this->checkoutTransparente->createCardPaymentForInvoice($invoice, $mpData);
             
-            // Atualizar PaymentIntent
-            $paymentIntent->update([
-                'mp_payment_id' => $mpResult['payment_id'],
-                'status' => $mpResult['status'],
-                'status_detail' => $mpResult['status_detail'] ?? null,
-                'card_last_digits' => $mpResult['card_last_digits'] ?? null,
-                'card_brand' => $mpResult['card_brand'] ?? null,
-                'mp_response' => $mpResult,
-            ]);
-            
-            DB::commit();
-            
+            // VERIFICAÇÃO IMEDIATA
+            if (($mpResult['status'] ?? '') === 'approved') {
+                $intent = PaymentIntent::find($mpResult['payment_intent_id']);
+                $this->processPaymentConfirmation($intent, $mpResult['mp_response'] ?? []);
+            }
+                            
             return [
                 'success' => true,
-                'payment_intent_id' => $paymentIntent->id,
+                'payment_intent_id' => $mpResult['payment_intent_id'],
                 'transaction_id' => $mpResult['payment_id'],
                 'status' => $mpResult['status'],
                 'status_detail' => $mpResult['status_detail'] ?? '',
                 'message' => $this->getCardPaymentMessage($mpResult['status']),
                 'card_last_digits' => $mpResult['card_last_digits'] ?? '',
                 'card_brand' => $mpResult['card_brand'] ?? '',
+                'approved' => $mpResult['approved'],
                 'installments' => $installments,
             ];
             
@@ -492,18 +472,40 @@ class ExternalPaymentService
         ];
     }
     
+    
     protected function buildInvoiceCardPaymentData(
         Invoice $invoice,
-        float $amount,
         string $cardToken,
+        $payer,
         string $paymentMethodId,
         int $installments
     ): array {
-        return array_merge($this->buildInvoicePaymentData($invoice, $amount), [
+        $filho = $invoice->filho;
+        $user = $filho->user;
+
+        return [
+            'transaction_amount' => (float) $invoice->total_amount,
             'token' => $cardToken,
-            'payment_method_id' => $paymentMethodId,
+            'description' => "Fatura #{$invoice->invoice_number} - Mensalidade Mãos Estendidas",
             'installments' => $installments,
-        ]);
+            'payment_method_id' => $paymentMethodId, 
+            'payer' => [
+                'email' => $user->email,
+                'identification' => [
+                    'type' => $payer['identification']['type'],
+                    'number' => preg_replace('/\D/', '', $payer['identification']['number']),
+                ],
+            ],
+            'notification_url' => route('api.webhooks.mercadopago'),
+            'external_reference' => "invoice_{$invoice->id}",
+            'metadata' => [
+                'entity_type' => 'invoice',
+                'entity_id' => $invoice->id,
+                'order_number' => $invoice->invoice_number,
+                'filho_id' => $filho->id,
+                'integration_type' => 'checkout_card',
+            ],
+        ];
     }
 
     /**

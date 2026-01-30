@@ -348,6 +348,7 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'card_token' => 'required|string',
+            'payment_method_id' => 'required|string',
             'installments' => 'required|integer|min:1|max:12',
             'payer' => 'sometimes|array',
             'payer.email' => 'required_with:payer|email',
@@ -409,39 +410,18 @@ class PaymentController extends Controller
             $result = $this->externalPaymentService->createInvoiceCardPayment(
                 $invoice,
                 $validated['card_token'],
-                $validated['installments'],
-                $payer
+                $payer,
+                $validated['payment_method_id']
             );
 
-            // Se foi aprovado imediatamente
-            if ($result['approved']) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Pagamento aprovado!',
-                    'data' => [
-                        'payment_intent_id' => $result['payment_intent_id'],
-                        'status' => 'approved',
-                        'approved' => true,
-                        'invoice_id' => $invoice->id,
-                    ],
-                ]);
-            }
 
-            // Se está em processamento
             return response()->json([
                 'success' => true,
-                'message' => 'Pagamento em processamento',
-                'data' => [
-                    'payment_intent_id' => $result['payment_intent_id'],
-                    'mp_payment_id' => $result['mp_payment_id'],
-                    'status' => $result['status'],
-                    'approved' => false,
-                    'invoice_id' => $invoice->id,
-                ],
+                'message' => $result['approved'] ? 'Pagamento aprovado!' : 'Pagamento em processamento',
+                'data' => $result,
             ]);
 
-        } catch (\App\Exceptions\PaymentException $e) {
-            return $e->render();
+
         } catch (\Exception $e) {
             Log::error('Erro ao criar pagamento com Cartão para Invoice', [
                 'invoice_id' => $invoice->id,
