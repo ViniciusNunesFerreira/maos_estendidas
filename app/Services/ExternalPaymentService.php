@@ -228,11 +228,6 @@ class ExternalPaymentService
                 'error' => $e->getMessage(),
             ]);
             
-            throw new PaymentException(
-                'Erro ao processar cartão: ' . $e->getMessage(),
-                500,
-                'CREATE_CARD_PAYMENT_FAILED'
-            );
         }
     }
     
@@ -285,11 +280,6 @@ class ExternalPaymentService
                 'error' => $e->getMessage(),
             ]);
             
-            throw new PaymentException(
-                'Erro ao processar cartão para fatura: ' . $e->getMessage(),
-                500,
-                'CREATE_INVOICE_CARD_PAYMENT_FAILED'
-            );
         }
     }
     
