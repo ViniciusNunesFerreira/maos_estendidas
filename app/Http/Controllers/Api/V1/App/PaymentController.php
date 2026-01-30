@@ -173,7 +173,7 @@ class PaymentController extends Controller
 
             // Verificar status atualizado
             if (in_array($paymentIntent->status, ['pending', 'processing'])) {
-                $this->checkoutService->checkPaymentStatus($paymentIntent);
+                $this->externalPaymentService->checkPaymentStatus($paymentIntent);
                 $paymentIntent->refresh();
             }
 

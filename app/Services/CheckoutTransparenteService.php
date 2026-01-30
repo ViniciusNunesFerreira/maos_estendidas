@@ -25,8 +25,7 @@ use Exception;
 class CheckoutTransparenteService
 {
     public function __construct(
-        protected MercadoPagoService $mercadoPago,
-        protected ExternalPaymentService $externalPaymentService
+        protected MercadoPagoService $mercadoPago
     ) {}
 
     // =========================================================
@@ -528,33 +527,7 @@ class CheckoutTransparenteService
         return now()->addMinutes(30);
     }
 
-    /**
-     * Verificar status de pagamento
-     */
-    public function checkPaymentStatus(PaymentIntent $intent): array
-    {
-        try {
-            $mpResponse = $this->mercadoPago->getPayment($intent->mp_payment_id);
 
-            // VERIFICAÇÃO IMEDIATA
-            if (($mpResponse['status'] ?? '') === 'approved') {
-                $this->externalPaymentService->processPaymentConfirmation($intent, $mpResponse ?? []);
-            }
-
-            return [
-                'success' => true,
-                'status' => $mpResponse['status'],
-                'approved' => $intent->is_approved,
-            ];
-
-        } catch (MercadoPagoException $e) {
-            Log::error('Erro ao verificar status do pagamento', [
-                'intent_id' => $intent->id,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-    }
 
     /**
      * Processar pagamento aprovado (funciona para Order e Invoice)
