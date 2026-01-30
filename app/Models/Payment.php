@@ -35,6 +35,17 @@ class Payment extends Model
         'confirmed_at',
         'failed_at',
         'refunded_at',
+        'mp_payment_id',
+        'mp_payment_intent_id',
+        'mp_status',
+        'mp_status_detail',
+        'mp_payment_type_id',
+        'mp_payment_method_id',
+        'mp_issuer_id',
+        'is_tef',
+        'tef_device_id',
+        'tef_payment_intent_id',
+        'mp_response'
     ];
 
     protected $casts = [

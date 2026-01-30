@@ -362,7 +362,7 @@ class ExternalPaymentService
             // Verifica se já existe Payment com este ID do gateway para evitar duplicação
             $payment = Payment::where('gateway_transaction_id', (string) $mpData['id'])->first();
 
-            if (!$payment) {
+            if (!$payment) {    
                 $payment = Payment::create([
                     'order_id' => $intent->order_id,
                     'invoice_id' => $intent->invoice_id,
@@ -389,6 +389,15 @@ class ExternalPaymentService
                 // Vincula ao Intent
                 $intent->payment()->associate($payment);
                 $intent->save();
+            }else{
+
+                $payment->update([
+                    'mp_payment_id' => $mpData['id'],
+                    'mp_payment_intent_id' => $intent->id,
+                    'mp_status' => $mpData['status'],
+                    'mp_status_detail' => $mpData['status_detail'] ?? null,
+                ]);
+
             }
 
             // 4. Efeitos Colaterais (Baixa de Pedido/Fatura + Crédito)
