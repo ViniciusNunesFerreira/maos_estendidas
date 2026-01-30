@@ -121,7 +121,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/transactions', [AppBalanceController::class, 'transactions']);
             });
             
-            // Faturas de Consumo
+            // Faturas de Consumo e Assinaturas
             Route::prefix('invoices')->group(function () {
                 Route::get('/summary', [AppInvoiceController::class, 'summary']);
     
@@ -164,7 +164,7 @@ Route::prefix('v1')->group(function () {
                 Route::get('/stats', [AppOrderController::class, 'stats']);
                 
                 // Criar pedido (SEM pagamento)
-                Route::post('/', [AppOrderController::class, 'store']);
+                Route::post('/', [AppOrderController::class, 'store'])->middleware(['check.store']);
                 
                 // Ações específicas (COM parâmetro {order} - vêm DEPOIS)
                 Route::get('/{order}', [AppOrderController::class, 'show']);
@@ -179,20 +179,20 @@ Route::prefix('v1')->group(function () {
             Route::prefix('transactions')->group(function(){
                 // Transações
                 Route::get('/', [TransactionController::class, 'index']);
-                Route::post('/consume-limit', [TransactionController::class, 'consumeLimit']);
+                Route::post('/consume-limit', [TransactionController::class, 'consumeLimit'])->middleware(['check.store']);
                 Route::get('/balance', [TransactionController::class, 'getBalance']);
             });
 
-            // Payments - Mercado Pago (Mantido para retrocompatibilidade)
+            // Pagamentos (Dividido entre Orders(Pedidos) e (Invoices) Pagamentos de Faturas )
             Route::prefix('payments')->middleware(['throttle:3,1'])->group(function () {
-                Route::post('/create-pix', [PaymentController::class, 'createPixPayment']);
-                Route::post('/create-card', [PaymentController::class, 'createCardPayment']);
                 
                 Route::post('/{paymentIntent}/cancel', [PaymentController::class, 'cancelPayment']);
 
-                // ========== NOVOS ENDPOINTS - ORDERS (MODERNOS) ==========
-                Route::post('/orders/{order}/pix', [PaymentController::class, 'createOrderPix']);
-                Route::post('/orders/{order}/card', [PaymentController::class, 'createOrderCard']);
+                Route::middleware(['check.store'])->prefix('orders')->group(function () {
+                    // ========== NOVOS ENDPOINTS - ORDERS (MODERNOS) ==========
+                    Route::post('/{order}/pix', [PaymentController::class, 'createOrderPix']);
+                    Route::post('/{order}/card', [PaymentController::class, 'createOrderCard']);
+                });
                 
                 // ========== NOVOS ENDPOINTS - INVOICES ==========
                 Route::post('/invoices/{invoice}/pix', [PaymentController::class, 'createInvoicePixPayment']);

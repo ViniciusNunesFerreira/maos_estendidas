@@ -32,7 +32,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.credit.limit' => \App\Http\Middleware\CheckCreditLimit::class,
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
-            'verify.mercadopago.signature' => \App\Http\Middleware\VerifyMercadoPagoSignature::class
+            'verify.mercadopago.signature' => \App\Http\Middleware\VerifyMercadoPagoSignature::class,
+            'check.store' => \App\Http\Middleware\CheckStoreStatus::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
