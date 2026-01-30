@@ -168,98 +168,86 @@ class CheckoutTransparenteService
         string $paymentMethodId,
         int $installments = 1
     ): array {
-        return DB::transaction(function () use ($order, $cardToken, $payer, $paymentMethodId, $installments) {
-            // Validar pedido
-            $this->validateOrder($order);
 
-            // Validar parâmetros
-            if (empty($cardToken)) {
-                throw new PaymentException('Token do cartão é obrigatório', 400);
+        $this->validateOrder($order);
+
+        // Validar parâmetros
+        if (empty($cardToken)) {
+            throw new PaymentException('Token do cartão é obrigatório', 400);
+        }
+
+        // Preparar dados para Mercado Pago
+        $mpData = $this->buildCardPaymentData(
+            $order,
+            $cardToken,
+            $payer,
+            $paymentMethodId,
+            $installments
+        );
+
+
+        try{
+
+            // Criar payment no Mercado Pago
+            $mpResponse = $this->mercadoPago->createPayment($mpData);
+            // Validar resposta
+            if (!isset($mpResponse['id'])) {
+                throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
             }
 
-            if ($installments < 1 || $installments > 12) {
-                throw new PaymentException('Número de parcelas inválido (1-12)', 400);
-            }
+            return DB::transaction(function () use ($order, $mpData, $mpResponse) {
 
-            // Preparar dados para Mercado Pago
-            $mpData = $this->buildCardPaymentData(
-                $order,
-                $cardToken,
-                $payer,
-                $paymentMethodId,
-                $installments
-            );
-
-            try {
-
-                $intent = PaymentIntent::where('order_id', $order->id)
-                                ->whereIn('status', ['created', 'pending', 'rejected'])
-                                ->first();
-
-                // Criar payment no Mercado Pago
-                $mpResponse = $this->mercadoPago->createPayment($mpData);
-
-                // Validar resposta
-                if (!isset($mpResponse['id'])) {
-                    throw new MercadoPagoException('Resposta inválida do Mercado Pago: ID não retornado');
-                }
-
-
-                if (!$intent) {
-                    // Criar PaymentIntent
-                    $intent =  $this->createPaymentIntent(
-                        order: $order,
-                        invoice: null,
-                        paymentMethod: 'credit_card',
-                        mpRequest: $mpData,
-                        mpResponse: $mpResponse
+                    // Busca se já existe um intent para atualizar ou cria um novo
+                    $intent = PaymentIntent::updateOrCreate(
+                        [
+                            'order_id' => $order->id,
+                            'payment_method' => 'credit_card',
+                        ],
+                        [
+                            'integration_type' => 'checkout',
+                            'amount' => $order?->total ?? 0,
+                            'mp_payment_id' => $mpResponse['id'],
+                            'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
+                            'status_detail' => $mpResponse['status_detail'] ?? null,
+                            'mp_request' => $mpData,
+                            'mp_response' => $mpResponse,
+                            'created_at_mp' => isset($mpResponse['date_created']) 
+                                ? Carbon::parse($mpResponse['date_created']) 
+                                : now(),
+                        ]
                     );
-                }else {
-                    $intent->update([
-                        'mp_payment_id' => $mpResponse['id'],
-                        'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
-                        'mp_response' => $mpResponse, // Guarda o motivo da rejeição aqui
+
+                    // Atualizar order
+                    $isApproved = $mpResponse['status'] === 'approved';
+                    $order->update([
+                        'payment_intent_id' => $intent->id,
+                        'awaiting_external_payment' => true,
+                        'payment_method_chosen' => 'mercadopago_card',
+                        'status' => $isApproved ? 'paid' : 'pending',
                     ]);
-                }
 
-                // Atualizar order
-                $order->update([
-                    'payment_intent_id' => $intent->id,
-                    'awaiting_external_payment' => true,
-                    'payment_method_chosen' => 'mercadopago_card',
-                    'status' => $mpResponse['status'] === 'approved' ? 'paid' : 'pending',
-                ]);
+                    
+                    return [
+                        'success' => true,
+                        'payment_intent_id' => $intent->id,
+                        'mp_payment_id' => $mpResponse['id'],
+                        'status' => $mpResponse['status'],
+                        'status_detail' => $mpResponse['status_detail'] ?? null,
+                        'approved' => $isApproved,
+                    ];
 
-                Log::info('Cartão criado para Order', [
-                    'order_id' => $order->id,
-                    'payment_intent_id' => $intent->id,
-                    'mp_payment_id' => $mpResponse['id'],
-                    'status' => $mpResponse['status'],
-                    'installments' => $installments,
-                ]);
+                
+            });
 
-                // Se já foi aprovado, processar
-              /*  if ($mpResponse['status'] === 'approved') {
-                    $this->processApprovedPayment($intent, $mpResponse);
-                }*/
+        }catch( \Exception $e){
 
-                return [
-                    'success' => true,
-                    'payment_intent_id' => $intent->id,
-                    'mp_payment_id' => $mpResponse['id'],
-                    'status' => $mpResponse['status'],
-                    'status_detail' => $mpResponse['status_detail'] ?? null,
-                    'approved' => $mpResponse['status'] === 'approved',
-                ];
+            \Log::error('Falha no processamento de cartão Mercado Pago', [
+                'order_id' => $order->id,
+                'exception' => $e->getMessage()
+            ]);
+            throw $e;
 
-            } catch (MercadoPagoException $e) {
-                Log::error('Erro ao criar pagamento com cartão para Order', [
-                    'order_id' => $order->id,
-                    'error' => $e->getMessage(),
-                ]);
-                throw $e;
-            }
-        });
+        }
     }
 
     // =========================================================
