@@ -221,7 +221,7 @@ class CheckoutTransparenteService
                     $isApproved = $mpResponse['status'] === 'approved';
                     $order->update([
                         'payment_intent_id' => $intent->id,
-                        'awaiting_external_payment' => true,
+                        'awaiting_external_payment' => $isApproved,
                         'payment_method_chosen' => 'mercadopago_card',
                         'status' => $isApproved ? 'paid' : 'pending',
                     ]);

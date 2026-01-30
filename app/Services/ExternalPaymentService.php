@@ -413,14 +413,12 @@ class ExternalPaymentService
      */
     private function finalizeOrder(Order $order, Payment $payment): void
     {
-        if (!$order->isPaid()) {
             $order->markAsPaid();
             $order->update([
                 'payment_intent_id' => $payment->mp_payment_intent_id,
                 'awaiting_external_payment' => false
             ]);
-            // Dispara evento de pedido pago
-        }
+            
     }
 
     /**

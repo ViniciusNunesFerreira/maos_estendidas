@@ -22,47 +22,33 @@ class Order extends Model
         'order_number',
         'filho_id',
         'created_by_user_id',
-        'user_id', // Operador
-        'invoice_id', // Vínculo com fatura mensal
-        'origin', // pdv, totem, app
+        'user_id', 
+        'invoice_id', 
+        'origin', 
         'device_id',
-        
-        // Dados Cliente
         'customer_type',
         'customer_name',
         'customer_cpf',
         'customer_phone',
         'guest_name',
         'guest_document',
-
-        // Valores
         'subtotal',
         'discount',
         'total',
-        
-        // Status
         'status',
         'cancellation_reason',
         'cancelled_at',
-        
-        // Faturamento
         'is_invoiced',
         'invoiced_at',
-        
-        // Timestamps Processo
         'paid_at',
         'preparing_at',
         'ready_at',
         'delivered_at',
-        'completed_at',
-        
-        // Sincronização e Notas
         'is_synced',
         'synced_at',
         'sync_uuid',
         'notes',
         'kitchen_notes',
-
         'payment_intent_id',
         'awaiting_external_payment',
         'payment_method_chosen'
@@ -76,7 +62,6 @@ class Order extends Model
         'preparing_at' => 'datetime',
         'ready_at' => 'datetime',
         'delivered_at' => 'datetime',
-        'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'is_invoiced' => 'boolean',
         'invoiced_at' => 'datetime',
