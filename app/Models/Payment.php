@@ -57,7 +57,10 @@ class Payment extends Model
         'confirmed_at' => 'datetime',
         'failed_at' => 'datetime',
         'refunded_at' => 'datetime',
+        'mp_response' => 'array',
+        'mp_request' => 'array',
     ];
+
 
     // Relacionamentos
     public function order(): BelongsTo

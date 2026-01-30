@@ -428,7 +428,7 @@ class CheckoutTransparenteService
                 'invoice_id' => $invoice?->id,
                 'error' => $e->getMessage(),
             ]);
-            throw new PaymentException('Erro ao criar PaymentIntent: ' . $e->getMessage(), 500);
+            throw new PaymentException('Erro ao criar PaymentIntent: ' . $e->getMessage(), 500, 'CREATE_PAYMENT_FAILED');
         }
     }
 
