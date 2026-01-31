@@ -265,7 +265,7 @@
                     </p>
                     <div class="absolute top-0 right-0 w-20 h-20 bg-white opacity-5 rounded-bl-full"></div>
                 </div>
-                <div class="h-64 md:h-auto bg-[url('/assets/images/natal-solidario-maos-estendidas.jpg')] bg-cover bg-center grayscale hover:grayscale-0 transition duration-700"></div>
+                <div class="h-64 md:h-auto bg-[url('/assets/images/trabalho-social-maos-estendidas.jpg')] bg-cover bg-center grayscale hover:grayscale-0 transition duration-700"></div>
 
                 <div class="h-64 md:h-auto bg-[url('/assets/images/umbanda-cura.jpg')] bg-cover bg-center grayscale hover:grayscale-0 transition duration-700 order-last md:order-none"></div>
                 <div class="bg-[#F8F5F2] text-gray-800 p-10 md:p-16 flex flex-col justify-center order-none md:order-last relative">
