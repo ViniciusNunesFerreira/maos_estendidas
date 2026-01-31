@@ -43,9 +43,7 @@ class CheckoutTransparenteService
                         [   
                             'integration_type' => 'checkout', 
                             'payment_method' => 'pix', 
-                            'amount' => $order?->total ??  0,
-
-
+                            'amount' => $order?->total ??  0
                         ]);
         });
 
@@ -156,7 +154,7 @@ class CheckoutTransparenteService
     {
         return [
             'success' => true,
-            'payment_id' => $mpResponse['id'], 
+            'payment_id' => $mpResponse['id'],
             'mp_payment_id' => $mpResponse['id'],
             'status' => $mpResponse['status'] ?? 'pending',
             'qr_code' => $mpResponse['point_of_interaction']['transaction_data']['qr_code'] ?? null,

@@ -139,7 +139,7 @@ class ExternalPaymentService
                         'invoice_id' => $invoice->id,
                         'payment_method' => 'pix',
                         'integration_type' => 'checkout',
-                        'amount'           => $amountToPay,
+                        'amount'           => $invoice->total_amount,
                         'status' => 'pending',
                         'pix_qr_code' => $mpResult['qr_code'],
                         'pix_qr_code_base64' => $mpResult['qr_code_base64'],
