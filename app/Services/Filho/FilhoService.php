@@ -72,10 +72,7 @@ class FilhoService
 
             try{
 
-                $msg = "Seja bem-vindo, filho(a)! Que bom que você se cadastrou...\n 
-                        Agora, vamos cuidar da liberação do seu acesso. 
-                        Será um processo rápido para que você possa, em breve, acompanhar seu histórico e os materiais de estudo.
-                        Logo mais voltamos com a confirmação. Estamos juntos nessa jornada!";
+                $msg = "Seja bem-vindo, filho(a)! Que bom que você se cadastrou...\nAgora, vamos cuidar da liberação do seu acesso.\nSeus dados foram salvos e já serão analisados para aprovação.\n Qualquer dúvida entre em contato conosco!";
                 
                 $filho->notify(new SendMessageWhatsApp($msg));
 
@@ -96,9 +93,7 @@ class FilhoService
         float $subscriptionAmount = 120,
     ): Filho {
             try{
-                $msg = "Olá! Informamos que seu acesso ao aplicativo Mãos Estendidas já está disponível.\n
-                 Se ainda não realizou a instalação, você pode fazê-la de forma prática através do nosso site. Caso já o tenha instalado, utilize suas credenciais de cadastro para entrar. 
-                 A partir de agora, você tem acesso total ao seu histórico financeiro e aos nossos materiais de desenvolvimento.";
+                $msg = "Olá! Informamos que seu acesso ao aplicativo Mãos Estendidas já está disponível.\n Se ainda não realizou a instalação, você pode fazê-la de forma prática através do nosso site. Caso já o tenha instalado, utilize suas credenciais de cadastro para entrar.\n A partir de agora, você tem acesso total ao seu histórico financeiro e aos nossos materiais de desenvolvimento.";
                 
                 $filho->notify(new SendMessageWhatsApp($msg));
 
