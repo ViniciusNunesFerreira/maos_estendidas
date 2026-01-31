@@ -299,6 +299,33 @@
         </div>
     </section>
 
+    <section class="py-12 bg-gray-50 border-t border-gray-200">
+        <div class="container mx-auto px-6">
+            <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-[#D4AF37] opacity-[0.03] rounded-bl-full"></div>
+                
+                <div class="text-center md:text-left relative z-10">
+                    <h3 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2 leading-tight">
+                        Portal da Corrente <span class="gold-text">Mediúnica</span>
+                    </h3>
+                    <p class="text-gray-500 font-light max-w-md">
+                        Espaço exclusivo para os filhos da casa. Acesse orientações, cronogramas e materiais exclusivos do T.U.M.E.
+                    </p>
+                </div>
+
+                <div class="relative z-10">
+                    <a href="https://filhos.paitonayede.com.br" target="_blank" 
+                       class="inline-flex items-center gap-3 px-8 py-4 bg-[#1a1a1a] text-white rounded-xl font-bold tracking-widest text-xs uppercase transition-all duration-500 hover:bg-[#D4AF37] hover:shadow-[0_10px_20px_rgba(212,175,55,0.3)] group">
+                        <svg class="w-5 h-5 text-[#D4AF37] group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                        Área Restrita
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <footer id="contato" class="bg-white border-t border-gray-100 pt-16 pb-8">
         <div class="container mx-auto px-6">
             <div class="grid md:grid-cols-3 gap-12 mb-12">
