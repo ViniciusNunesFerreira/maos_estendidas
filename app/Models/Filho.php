@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Notifications\Notifiable;
 
 class Filho extends Model
 {
@@ -18,6 +19,7 @@ class Filho extends Model
     use HasUuid;
     use SoftDeletes;
     use Auditable;
+    use Notifiable;
 
     protected $table = 'filhos';
 
