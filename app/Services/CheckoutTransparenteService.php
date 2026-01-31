@@ -40,7 +40,13 @@ class CheckoutTransparenteService
 
                     return PaymentIntent::firstOrCreate(
                         ['order_id' => $order->id, 'status' => 'pending'],
-                        ['integration_type' => 'checkout', 'payment_method' => 'pix', 'amount' => $order?->total ??  0]);
+                        [   
+                            'integration_type' => 'checkout', 
+                            'payment_method' => 'pix', 
+                            'amount' => $order?->total ??  0,
+
+
+                        ]);
         });
 
         try {
@@ -59,13 +65,17 @@ class CheckoutTransparenteService
         }
 
 
-        return DB::transaction(function () use ($intent, $order, $mpResponse) {
+        return DB::transaction(function () use ($intent, $order, $mpResponse, $mpData) {
 
 
                 $intent->update([
                     'mp_payment_id' => $mpResponse['id'],
                     'status' => $this->mapMercadoPagoStatus($mpResponse['status']),
-                    'mp_response' => $mpResponse, 
+                    'mp_response' => $mpResponse,
+                    'pix_qr_code' => $mpResponse['point_of_interaction']['transaction_data']['qr_code'] ?? null,
+                    'pix_qr_code_base64' => $mpResponse['point_of_interaction']['transaction_data']['qr_code_base64'] ?? null,
+                    'pix_expiration' => $this->getPixExpirationDate($mpResponse),
+                    'mp_request' => $mpData,
                 ]);
                 
 
