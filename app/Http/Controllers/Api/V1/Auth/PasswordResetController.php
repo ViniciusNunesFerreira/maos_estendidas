@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use App\Models\Fillho;
+use App\Models\Filho;
 use App\Notifications\Auth\ResetPasswordOtpNotification;
 use Carbon\Carbon;
 
@@ -24,10 +24,10 @@ class PasswordResetController extends Controller
         $cpf = preg_replace('/\D/', '', $request->cpf);
 
         // Busca usuário (Ajuste a Model conforme sua estrutura de BD)
-        $fillho = Fillho::where('cpf', $cpf)->first();
+        $filho = Filho::where('cpf', $cpf)->first();
 
-        if (!$fillho) {
-            // Retorna sucesso fake por segurança (Fillho Enumeration) ou erro amigável dependendo da política
+        if (!$filho) {
+            // Retorna sucesso fake por segurança (Filho Enumeration) ou erro amigável dependendo da política
             return response()->json([
                 'success' => false,
                 'message' => 'CPF não encontrado em nossa base.'
@@ -52,13 +52,13 @@ class PasswordResetController extends Controller
 
         // Envia notificação
         try {
-            $fillho->notify(new ResetPasswordOtpNotification($code));
+            $filho->notify(new ResetPasswordOtpNotification($code));
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Erro ao enviar SMS/WhatsApp.'], 500);
         }
 
         // Mascara o telefone para retorno
-        $phone = $fillho->phone;
+        $phone = $filho->phone;
         $maskedPhone = substr($phone, 0, 2) . ' (' . substr($phone, 2, 2) . ') *****-' . substr($phone, -4);
 
         return response()->json([
