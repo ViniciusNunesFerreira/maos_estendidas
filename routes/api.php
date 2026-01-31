@@ -59,13 +59,12 @@ Route::prefix('v1')->group(function () {
         
         // Recuperação de senha via SMS
         Route::post('password/request-sms', [PasswordResetController::class, 'requestSms'])
-            ->middleware('throttle:3,10');
+            ->middleware('throttle:password-otp');
         
-        Route::post('password/verify-code', [PasswordResetController::class, 'verifyCode'])
-            ->middleware('throttle:5,10');
+        Route::post('password/verify-code', [PasswordResetController::class, 'verifyCode']);
         
         Route::post('password/reset-sms', [PasswordResetController::class, 'resetWithSms'])
-            ->middleware('throttle:3,10');
+            ->middleware('throttle:password-reset-final');
     });
 
     // =========================================================

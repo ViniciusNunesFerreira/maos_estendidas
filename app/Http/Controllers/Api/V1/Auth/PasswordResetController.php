@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use App\Models\Filho;
 use App\Notifications\Auth\ResetPasswordOtpNotification;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\RateLimiter;
 
 class PasswordResetController extends Controller
 {
@@ -143,6 +144,8 @@ class PasswordResetController extends Controller
         if ($user) {
             $user->password = Hash::make($request->password);
             $user->save();
+
+            RateLimiter::clear('password-otp:'.$request->cpf);
         }
 
         // Limpa o código usado

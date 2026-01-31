@@ -17,6 +17,9 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -62,6 +65,16 @@ class AppServiceProvider extends ServiceProvider
             }
 
         }
+
+        // Limite para envio de OTP (3 por hora por CPF)
+        RateLimiter::for('password-otp', function (Request $request) {
+            return Limit::perHour(5)->by($request->cpf ?: $request->ip());
+        });
+
+        // Limite para a tentativa de redefinição final (evitar brute force na senha)
+        RateLimiter::for('password-reset-final', function (Request $request) {
+            return Limit::perMinute(5)->by($request->cpf ?: $request->ip());
+        });
 
        // Invoice::observe(InvoiceObserver::class);
        // Order::observe(OrderObserver::class);
