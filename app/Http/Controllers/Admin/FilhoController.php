@@ -119,6 +119,7 @@ class FilhoController extends Controller
         try {
             $this->filhoService->approve($filho);
             
+            
             return back()
                 ->with('success', 'Cadastro aprovado! Filho notificado por SMS e Email.');
                 

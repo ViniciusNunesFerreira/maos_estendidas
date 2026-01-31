@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use App\Notifications\SendMessageWhatsApp;
 
 class FilhoService
 {
@@ -25,49 +26,65 @@ class FilhoService
      */
     public function create(CreateFilhoDTO $dto): Filho
     {
-        return DB::transaction(function () use ($dto) {
+        $filho = DB::transaction(function () use ($dto) {
 
-            $photoUrl = null;
-            if ($dto->photo) {
-                $path = $dto->photo->store('filhos/photos', 'public');
-                // Gera URL completa (requer php artisan storage:link)
-                $photoUrl = Storage::url($path);
+                $photoUrl = null;
+                if ($dto->photo) {
+                    $path = $dto->photo->store('filhos/photos', 'public');
+                    // Gera URL completa (requer php artisan storage:link)
+                    $photoUrl = Storage::url($path);
+                }
+
+                // Criar usuário
+                $user = User::create([
+                    'name' => $dto->name,
+                    'email' => $dto->email ?? "{$dto->cpf}@maosestendidas.local", // Email opcional
+                    'password' => Hash::make($dto->password),
+                    'phone' => preg_replace('/\D/', '',  $dto->phone),
+                    'avatar_url' => $photoUrl,
+                    'role' => 'filho',
+                    'is_active' => false, // Ativo após aprovação
+                ]);
+                
+                // Criar filho
+                $filho = Filho::create([
+                    'user_id' => $user->id,
+                    'cpf' => preg_replace('/\D/', '', $dto->cpf),
+                    'birth_date' => $dto->birthDate,
+                    'mother_name' => $dto->motherName, // NOVO CAMPO
+                    'phone' => preg_replace('/\D/', '',  $dto->phone),
+                    'address' => $dto->address,
+                    'address_number' => $dto->addressNumber,
+                    'address_complement' => $dto->addressComplement,
+                    'neighborhood' => $dto->neighborhood,
+                    'city' => $dto->city,
+                    'state' => $dto->state,
+                    'zip_code' => preg_replace('/\D/', '', $dto->zipCode),
+                    'credit_limit' => $dto->creditLimit ?? config('casalar.credit.default_limit', 10000),
+                    'billing_close_day' => config('casalar.billing.default_close_day', 30),
+                    'max_overdue_invoices' => config('casalar.credit.max_overdue_invoices', 3),
+                    'status' => 'inactive',
+                    'admission_date' => now(),
+                ]);
+                
+                return $filho;
+            });
+
+            try{
+
+                $msg = "Seja bem-vindo, filho(a)! Que bom que você se cadastrou...\n 
+                        Agora, vamos cuidar da liberação do seu acesso. 
+                        Será um processo rápido para que você possa, em breve, acompanhar seu histórico e os materiais de estudo.
+                        Logo mais voltamos com a confirmação. Estamos juntos nessa jornada!";
+                
+                $filho->notify(new SendMessageWhatsApp($msg));
+
+        
+            }catch(\Exception $e){
+                \Log::error('Não foi possivel enviar notificação: '.$e->getMessage());
             }
 
-            // Criar usuário
-            $user = User::create([
-                'name' => $dto->name,
-                'email' => $dto->email ?? "{$dto->cpf}@maosestendidas.local", // Email opcional
-                'password' => Hash::make($dto->password),
-                'phone' => preg_replace('/\D/', '',  $dto->phone),
-                'avatar_url' => $photoUrl,
-                'role' => 'filho',
-                'is_active' => false, // Ativo após aprovação
-            ]);
-            
-            // Criar filho
-            $filho = Filho::create([
-                'user_id' => $user->id,
-                'cpf' => preg_replace('/\D/', '', $dto->cpf),
-                'birth_date' => $dto->birthDate,
-                'mother_name' => $dto->motherName, // NOVO CAMPO
-                'phone' => preg_replace('/\D/', '',  $dto->phone),
-                'address' => $dto->address,
-                'address_number' => $dto->addressNumber,
-                'address_complement' => $dto->addressComplement,
-                'neighborhood' => $dto->neighborhood,
-                'city' => $dto->city,
-                'state' => $dto->state,
-                'zip_code' => preg_replace('/\D/', '', $dto->zipCode),
-                'credit_limit' => $dto->creditLimit ?? config('casalar.credit.default_limit', 10000),
-                'billing_close_day' => config('casalar.billing.default_close_day', 30),
-                'max_overdue_invoices' => config('casalar.credit.max_overdue_invoices', 3),
-                'status' => 'inactive',
-                'admission_date' => now(),
-            ]);
-            
-            return $filho;
-        });
+        return $filho;
     }
 
     /**
@@ -78,6 +95,18 @@ class FilhoService
         //Valor momentaneo Fixo para posterior colocar por edição nas configurações
         float $subscriptionAmount = 120,
     ): Filho {
+            try{
+                $msg = "Olá! Informamos que seu acesso ao aplicativo Mãos Estendidas já está disponível.\n
+                 Se ainda não realizou a instalação, você pode fazê-la de forma prática através do nosso site. Caso já o tenha instalado, utilize suas credenciais de cadastro para entrar. 
+                 A partir de agora, você tem acesso total ao seu histórico financeiro e aos nossos materiais de desenvolvimento.";
+                
+                $filho->notify(new SendMessageWhatsApp($msg));
+
+            }catch(\Exception $e){
+                \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());
+            }
+            
+
         return DB::transaction(function () use ($filho, $subscriptionAmount) {
             // Atualizar status
             $filho->update([
@@ -90,8 +119,7 @@ class FilhoService
                 $subscriptionAmount,
             );
             
-            // Enviar notificação 
-           // SendFilhoApprovalNotification::dispatch($filho);
+            
             
             return $filho->fresh(['subscription', 'user']);
         });

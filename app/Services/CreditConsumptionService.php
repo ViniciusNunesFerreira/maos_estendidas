@@ -25,23 +25,7 @@ use App\Exceptions\FilhoBlockedException;
  */
 class CreditConsumptionService
 {
-    /**
-     * Processar consumo de limite de crédito
-     * 
-     * FLUXO:
-     * 1. Validar filho (ativo, não bloqueado)
-     * 2. Validar limite disponível
-     * 3. Deduzir do limite
-     * 4. Marcar Order como paid (operacional)
-     * 5. Manter is_invoiced=false (vai para fatura)
-     * 6. Registrar transaction (histórico)
-     * 
-     * @param Order $order Pedido a ser pago
-     * @return array Resultado do processamento
-     * @throws PaymentException
-     * @throws InsufficientCreditException
-     * @throws FilhoBlockedException
-     */
+   
     public function consumeLimit(Order $order): array
     {
         // ========== VALIDAÇÕES INICIAIS ==========
