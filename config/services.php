@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'zapi' => [
+        'base_url' => env('ZAPI_BASE_URL'),
+        'token' => env('ZAPI_TOKEN'),
+    ],
+
 ];
