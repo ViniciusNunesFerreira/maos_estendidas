@@ -61,7 +61,7 @@ class FilhoService
                     'state' => $dto->state,
                     'zip_code' => preg_replace('/\D/', '', $dto->zipCode),
                     'credit_limit' => $dto->creditLimit ?? config('casalar.credit.default_limit', 10000),
-                    'billing_close_day' => config('casalar.billing.default_close_day', 30),
+                    'billing_close_day' => config('casalar.billing.default_close_day', 1),
                     'max_overdue_invoices' => config('casalar.credit.max_overdue_invoices', 3),
                     'status' => 'inactive',
                     'admission_date' => now(),
@@ -100,6 +100,8 @@ class FilhoService
             }catch(\Exception $e){
                 \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());
             }
+        
+        $subscriptionAmount = config('casalar.subscription.default_amount', 120);
             
 
         return DB::transaction(function () use ($filho, $subscriptionAmount) {

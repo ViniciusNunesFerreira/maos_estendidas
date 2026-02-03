@@ -16,33 +16,82 @@ class InvoiceService
 {
     /**
      * Gera faturas de consumo mensal para todos os filhos elegíveis.
-     * Utiliza chunking para evitar estouro de memória.
+     * Otimizado para alta performance e baixo consumo de memória.
      */
     public function generateMonthlyInvoices(?Carbon $referenceDate = null): array
     {
-        $referenceDate = $referenceDate ?? now();
+        // Define a data de referência (hoje)
+        $today = $referenceDate ? $referenceDate->copy()->startOfDay() : Carbon::today();
+        
         $generatedCount = 0;
         $errors = [];
+        $currentDay = $today->day;
+        
+        // --- 1. PREPARAÇÃO DE DATAS DO LOTE ---
+        
+        // A fatura gerada HOJE (dia do fechamento) refere-se ao mês anterior completo
+        // Ex: Fechamento 01/02 -> Período: 01/01 a 31/01
+        $periodStart = $today->copy()->subMonth()->startOfMonth();
+        $periodEnd   = $today->copy()->subMonth()->endOfMonth();
+        
+        // Vencimento: 5º dia útil deste mês atual
+        $dueDate = $this->getFifthBusinessDay($today);
 
-        // Dia atual para verificar o ciclo de fechamento
-        $currentDay = $referenceDate->day;
+        Log::info("Iniciando faturamento em massa. Ref: {$today->format('d/m/Y')}. Vencimento: {$dueDate->format('d/m/Y')}");
 
-        // Processa em lotes de 100 filhos para otimizar memória
-        Filho::active()
-            ->where('billing_close_day', $currentDay)
-            ->chunkById(100, function ($filhos) use ($referenceDate, &$generatedCount, &$errors) {
-                foreach ($filhos as $filho) {
-                    try {
-                        $invoice = $this->processInvoiceForFilho($filho, $referenceDate);
-                        if ($invoice) {
-                            $generatedCount++;
-                        }
-                    } catch (\Exception $e) {
-                        $errors[] = "Erro ao gerar fatura para Filho ID {$filho->id}: " . $e->getMessage();
-                        Log::error("Invoice Generation Error: " . $e->getMessage());
+        // --- 2. QUERY INTELIGENTE (Edge Case Final de Mês) ---
+        
+        $query = Filho::active();
+
+        // Se hoje for o último dia do mês (ex: 28 de fev, 30 de abril),
+        // devemos processar também quem tem vencimento nos dias 'inexistentes' (29, 30, 31)
+        if ($today->copy()->endOfMonth()->isToday()) {
+            $query->where('billing_close_day', '>=', $currentDay);
+        } else {
+            $query->where('billing_close_day', $currentDay);
+        }
+
+        // --- 3. PROCESSAMENTO EM LOTES (Chunking) ---
+
+        // Processa em lotes de 100 para não estourar a RAM
+        $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd, $dueDate, &$generatedCount, &$errors) {
+            
+            foreach ($filhos as $filho) {
+                DB::beginTransaction();
+                try {
+                    // Verifica se já existe fatura para este mês/ano para evitar duplicidade
+                    // Isso protege contra re-execução do Cron Job
+                    $exists = Invoice::where('filho_id', $filho->id)
+                        ->where('type', 'subscription')
+                        ->whereMonth('period_start', $periodStart->month)
+                        ->whereYear('period_start', $periodStart->year)
+                        ->exists();
+
+                    if ($exists) {
+                        DB::commit();
+                        continue; 
                     }
+
+                    // Processa a criação da fatura
+                    $this->createInvoiceForFilho($filho, $periodStart, $periodEnd, $dueDate);
+                    
+                    DB::commit();
+                    $generatedCount++;
+
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    $msg = "Erro Faturamento Filho ID {$filho->id}: {$e->getMessage()}";
+                    $errors[] = $msg;
+                    Log::error($msg);
                 }
-            });
+            }
+            
+            // Libera memória explicitamente após cada chunk
+            unset($filhos);
+            gc_collect_cycles();
+        });
+
+        Log::info("Faturamento concluído. Gerados: {$generatedCount}. Erros: " . count($errors));
 
         return [
             'generated_count' => $generatedCount,
@@ -54,7 +103,7 @@ class InvoiceService
      * Processa o fechamento de fatura de consumo para um único filho.
      * Centraliza a lógica que antes estava duplicada.
      */
-    public function processInvoiceForFilho(Filho $filho, Carbon $referenceDate): ?Invoice
+   /* public function processInvoiceForFilho(Filho $filho, Carbon $referenceDate): ?Invoice
     {
         // Define o intervalo de busca de pedidos (mês anterior ao fechamento ou ciclo personalizado)
         // Assumindo ciclo: dia X do mês anterior até dia X-1 deste mês
@@ -145,27 +194,67 @@ class InvoiceService
 
             return $invoice;
         });
+    }*/
+
+    /**
+     * Cria a fatura individual (Método helper privado)
+     */
+    private function createInvoiceForFilho(Filho $filho, Carbon $start, Carbon $end, Carbon $due): Invoice
+    {
+        // Pega o valor da assinatura ativa ou o padrão do sistema
+        // Assumindo que o relacionamento 'subscription' existe e pega a mais recente/ativa
+        $subscription = $filho->subscription; 
+        $amount = $subscription ? $subscription->amount : config('casalar.subscription.default_amount');
+
+        $invoice = Invoice::create([
+            'filho_id' => $filho->id,
+            'type' => 'subscription',
+            'invoice_number' => Invoice::generateNextInvoiceNumber('subscription'),
+            'period_start' => $start,
+            'period_end' => $end,
+            'issue_date' => now(),
+            'due_date' => $due,
+            'subtotal' => $amount,
+            'total_amount' => $amount,
+            'status' => 'pending',
+            'notes' => "Mensalidade referente a " . $start->translatedFormat('F/Y'),
+        ]);
+
+        InvoiceItem::create([
+            'invoice_id' => $invoice->id,
+            'description' => "Mensalidade - " . $start->translatedFormat('F/Y'),
+            'category' => 'Mensalidade',
+            'quantity' => 1,
+            'unit_price' => $amount,
+            'subtotal' => $amount,
+            'total' => $amount,
+            'purchase_date' => now(),
+        ]);
+
+        // Dispara notificação se necessário (Job na fila)
+        // SendInvoiceNotification::dispatch($invoice);
+
+        return $invoice;
     }
+
 
     /**
      * Gera fatura de Assinatura (Mensalidade)
      * Diferente do consumo, esta não depende de pedidos anteriores, é um valor fixo.
      */
-    public function generateSubscriptionInvoice(Filho $filho, float $amount, Carbon $referenceMonth): Invoice
+    //Função antiga comentada para correção em : 03/02/2026
+    public function generateSubscriptionInvoice(
+        Filho $filho, 
+        float $amount, 
+        Carbon $periodStart,
+        Carbon $periodEnd,
+        Carbon $dueDate
+    ): Invoice
     {
-        return DB::transaction(function () use ($filho, $amount, $referenceMonth) {
-            $periodStart = $referenceMonth->copy()->startOfMonth();
-            $periodEnd = $referenceMonth->copy()->endOfMonth();
-
+        return DB::transaction(function () use ($filho, $amount, $periodStart, $periodEnd, $dueDate) {
             
-            // 1. Calcular Data de Fechamento (Billing Date)
-            $dataFechamento = Carbon::create($referenceMonth->year, $referenceMonth->month, 28);
-            if ($referenceMonth->day > 28) {
-                $dataFechamento->addMonth();
-            }
-            // 2. Calcular Data de Vencimento (Dia 05 do mês seguinte ao fechamento)
-            $dataVencimento = $dataFechamento->copy()->addMonth()->day(5);
-            $dueDate = $dataVencimento;
+            // Formatamos a competência baseada no início do período
+            $competencia = $periodStart->format('m/Y');
 
             $invoice = Invoice::create([
                 'filho_id' => $filho->id,
@@ -179,13 +268,12 @@ class InvoiceService
                 'total_amount' => $amount,
                 'paid_amount' => 0,
                 'status' => 'pending',
-                'notes' => "Mensalidade Competência: {$referenceMonth->format('m/Y')}",
+                'notes' => "Mensalidade Competência: {$competencia}",
             ]);
 
-            // Cria o item da mensalidade
             InvoiceItem::create([
                 'invoice_id' => $invoice->id,
-                'description' => "Mensalidade - {$referenceMonth->format('F/Y')}",
+                'description' => "Mensalidade - {$periodStart->translatedFormat('F/Y')}",
                 'category' => 'Mensalidade',
                 'quantity' => 1,
                 'unit_price' => $amount,
@@ -197,6 +285,8 @@ class InvoiceService
             return $invoice;
         });
     }
+
+
 
     /**
      * Aplica multa e juros em faturas atrasadas.
@@ -281,6 +371,74 @@ class InvoiceService
         if (!$hasOverdue) {
             $filho->update(['is_blocked' => false]);
         }
+    }
+
+
+    /**
+     * Calcula o 5º dia útil de um determinado mês/ano
+     * Considera Finais de Semana e Feriados Nacionais (Fixos e Móveis).
+     */
+    public function getFifthBusinessDay(Carbon $date): Carbon
+    {
+        $day = $date->copy()->startOfMonth();
+        $businessDaysFound = 0;
+        $targetBusinessDays = 5;
+
+        // Cache simples dos feriados desse ano para evitar recálculo no loop
+        $holidays = $this->getNationalHolidays($day->year);
+
+        while ($businessDaysFound < $targetBusinessDays) {
+            $dateString = $day->format('m-d');
+            
+            $isWeekend = $day->isWeekend();
+            $isHoliday = in_array($dateString, $holidays);
+
+            // Só conta se não for sábado, domingo, nem feriado
+            if (!$isWeekend && !$isHoliday) {
+                $businessDaysFound++;
+            }
+
+            // Se ainda não chegamos no 5º dia, avança.
+            // Se chegamos no 5º dia, o loop para e retornamos $day (que é a data correta)
+            if ($businessDaysFound < $targetBusinessDays) {
+                $day->addDay();
+            }
+        }
+
+        return $day;
+    }
+
+
+    private function getNationalHolidays(int $year): array
+    {
+        // 1. Feriados Fixos Nacionais
+        $fixedHolidays = [
+            '01-01', // Confraternização Universal
+            '04-21', // Tiradentes
+            '05-01', // Dia do Trabalho
+            '09-07', // Independência do Brasil
+            '10-12', // Nossa Senhora Aparecida
+            '11-02', // Finados
+            '11-15', // Proclamação da República
+            '11-20', // Dia da Consciência Negra (Lei 14.759/2023)
+            '12-25', // Natal
+        ];
+
+        // 2. Feriados Móveis (Baseados na Páscoa)
+        // O PHP tem funções nativas para cálculo da páscoa, o que garante precisão matemática
+        
+        // Data da Páscoa (Domingo)
+        $easterDate = Carbon::createFromDate($year, 3, 21)->addDays(easter_days($year));
+
+        // Calculando feriados relativos à Páscoa
+        $movableHolidays = [
+            $easterDate->copy()->subDays(48)->format('m-d'), // Segunda de Carnaval (Bancos fechados)
+            $easterDate->copy()->subDays(47)->format('m-d'), // Terça de Carnaval (Bancos fechados)
+            $easterDate->copy()->subDays(2)->format('m-d'),  // Sexta-feira Santa (Paixão de Cristo)
+            $easterDate->copy()->addDays(60)->format('m-d'), // Corpus Christi
+        ];
+
+        return array_merge($fixedHolidays, $movableHolidays);
     }
 
 

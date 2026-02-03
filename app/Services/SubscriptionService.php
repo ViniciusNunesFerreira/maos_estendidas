@@ -47,17 +47,63 @@ class SubscriptionService
         ];
     }
 
+    public function calculateInitialBillingCycle(int $billingDayConfig): array
+    {
+        $today = Carbon::now();
+        
+        // 1. Determina a data do PRÓXIMO fechamento com base na configuração
+        $nextClosingDate = $today->copy()->day($billingDayConfig);
+        
+        // Se o dia de fechamento deste mês já passou (ex: hoje é 02, fechamento é 01),
+        // o próximo fechamento é no mês que vem.
+        if ($today->day >= $billingDayConfig) {
+            $nextClosingDate->addMonth();
+        }
+
+        // 2. Regra dos 10 dias (Buffer)
+        // Calculamos a diferença em dias entre hoje e o próximo fechamento
+        $daysUntilClosing = $today->diffInDays($nextClosingDate, false);
+
+        // Se faltar menos de 10 dias para fechar, jogamos o primeiro faturamento para o ciclo seguinte.
+        // Isso dá ao usuário um "Grace Period" nos dias restantes deste mês.
+        if ($daysUntilClosing < 10) {
+            // PULA um ciclo
+            $billingReferenceDate = $nextClosingDate->copy()->addMonth(); // Mês seguinte completo
+            $nextBillingCycleDate = $billingReferenceDate->copy()->addMonth();
+        } else {
+            // Ciclo Normal (cobra o mês atual/próximo fechamento)
+            $billingReferenceDate = $nextClosingDate->copy();
+            $nextBillingCycleDate = $billingReferenceDate->copy()->addMonth();
+        }
+
+        // 3. Definição dos Períodos da Fatura Inicial
+        // A fatura refere-se ao mês que termina na data de fechamento calculada
+        $periodEnd = $billingReferenceDate->copy()->subDay(); // Fim do período é um dia antes do fechamento
+        $periodStart = $periodEnd->copy()->startOfMonth();   // Início do mês daquela competência
+        
+        // 4. Definição do Vencimento (5º dia útil após o fechamento)
+        $dueDate = $this->invoiceService->getFifthBusinessDay($billingReferenceDate);
+
+        return [
+            'period_start' => $periodStart,
+            'period_end'   => $periodEnd,
+            'due_date'     => $dueDate,
+            'next_billing_date' => $nextBillingCycleDate, // Data para salvar no banco (para o cronjob futuro)
+        ];
+    }
+
     
 
     /**
      * Criar assinatura para filho aprovado
      */
-    public function createForFilho(
+    //função comentada para correção das datas de faturamento momentaneo para teste; 03/02/2026
+   /* public function createForFilho(
         Filho $filho, 
         float $amount = null, 
     ): Subscription {
-        $amount = $amount ?? config('casalar.subscription.default_amount', 120.00);
-        $billingDates = $this->calcularDatasFaturamento(28);
+        $amount = $amount ?? config('casalar.subscription.default_amount', 120);
+        $billingDates = $this->calcularDatasFaturamento(1);
 
         return DB::transaction(function () use ($filho, $amount, $billingDates) {
         
@@ -82,15 +128,56 @@ class SubscriptionService
                 referenceMonth: Carbon::now(),
             );
 
-                        // Notificar
-           /* if ($filho->user) {
-                $filho->user->notify(new SubscriptionCreated($subscription));
-            }*/
-
             return $subscription;
 
          });
+    }*/
+
+
+    /**
+    * Criar assinatura para filho aprovado
+    */
+    public function createForFilho(Filho $filho, float $amount = null): Subscription 
+    {
+        // Pega valor do config ou usa o passado
+        $amount = $amount ?? config('casalar.subscription.default_amount', 120.00);
+        
+        // Pega o dia de fechamento do config (Ex: 01)
+        // Se quiser usar o do filho específico: $filho->billing_close_day
+        $configCloseDay = config('casalar.billing.default_close_day', 1);
+
+        // Calcula toda a lógica de datas
+        $dates = $this->calculateInitialBillingCycle($configCloseDay);
+
+        return DB::transaction(function () use ($filho, $amount, $configCloseDay, $dates) {
+        
+            $subscription = Subscription::create([
+                'filho_id' => $filho->id,
+                'approved_by_user_id' => auth()->user()->id ?? null,
+                'plan_name' => 'Mensalidade Mãos Estendidas',
+                'plan_description' => 'Assinatura recorrente Filhos Mãos Estendidas',
+                'amount' => $amount,
+                'billing_cycle' => 'monthly',
+                'billing_day' => $configCloseDay, // Salva o dia configurado (ex: 1)
+                'started_at' => now(),
+                'first_billing_date' => $dates['due_date'], // Visualmente quando ele paga a primeira
+                'next_billing_date' => $dates['next_billing_date'], // Quando o cronjob vai gerar a próxima
+                'status' => 'active',
+            ]);
+
+            // Gera a primeira fatura IMEDIATAMENTE com as datas calculadas
+            $this->invoiceService->generateSubscriptionInvoice(
+                filho: $filho,
+                amount: $amount,
+                periodStart: $dates['period_start'],
+                periodEnd: $dates['period_end'],
+                dueDate: $dates['due_date']
+            );
+
+            return $subscription;
+        });
     }
+
 
     public function create(
         Filho $filho, 
