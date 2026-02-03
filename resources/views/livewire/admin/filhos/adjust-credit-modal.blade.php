@@ -14,7 +14,7 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Novo Limite (R$)</label>
                     <div class="relative">
 
-                        <input type="text" x-data x-on:input="window.maskCurrency($el)" wire:model.lazy="credit_limit"
+                        <input type="text" x-data x-on:input="window.maskCurrency($el)" wire:model="credit_limit"
                             class="input-focus block w-full py-3 border-gray-300 rounded-xl focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
                             placeholder="0,00" required>
                     </div>

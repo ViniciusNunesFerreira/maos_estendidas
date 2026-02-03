@@ -65,19 +65,33 @@ document.addEventListener('livewire:init', () => {
 
 // --- Funções de Máscara ---
 window.maskCurrency = function(input) {
+    // 1. Remove tudo que não é dígito
     let value = input.value.replace(/\D/g, '');
+    
     if (value === '') {
-        input.value = '';
+        if (input.value !== '') {
+            input.value = '';
+            input.dispatchEvent(new Event('input'));
+        }
         return;
     }
-    let amount = (parseInt(value) / 100).toFixed(2);
-    input.value = new Intl.NumberFormat('pt-BR', {
+
+    // 2. Formata o valor
+    let amount = (parseInt(value) / 100);
+    let formatted = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',
         minimumFractionDigits: 2
     }).format(amount);
 
-    input.dispatchEvent(new Event('input')); // Necessário para o Livewire ler o valor
+    // 3. SEGURANÇA: Só atualiza e dispara o evento se o valor mudou de fato
+    // Isso quebra o loop infinito
+    if (input.value !== formatted) {
+        input.value = formatted;
+        
+        // Dispara o evento para o Livewire/Alpine capturar a mudança
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 }
 
 window.maskCPF = function(input) {
