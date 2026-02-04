@@ -79,12 +79,12 @@ Route::get('/send-mensage', function(){
                 $delaySeconds = now()->addSeconds(rand(5, 60));
 
                 $saudacoes = ['Olá! ', 'Oi ', 'Tudo bem? ', 'Oi amor! '];
-                $saudacao = $saudacoes[array_rand($saudacoes)];
+                $saudacao = $saudacoes[array_rand($saudacoes)];          
 
                 $finais = [' já está disponível', ' foi liberado, tá', ' está ok! Agora é só acessar'];
                 $final = $finais[array_rand($finais)];
 
-                $msg = "{$saudacao} O seu acesso ao aplicativo Mãos Estendidas {$finais} .";
+                $msg = "{$saudacao} O seu acesso ao aplicativo Mãos Estendidas {$final} .";
                 
                 $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
 
