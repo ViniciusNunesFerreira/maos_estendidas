@@ -5,10 +5,11 @@
             <!-- Busca -->
             <div class="md:col-span-2">
                 <x-forms.input 
-                    wire:model.debounce.500ms="search" 
+                    wire:model.live.debounce.500ms="search" 
                     type="text" 
                     placeholder="Buscar por nome, CPF ou email..."
                     icon="search" 
+                    
                 />
             </div>
             

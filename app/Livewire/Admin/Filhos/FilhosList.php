@@ -94,11 +94,15 @@ class FilhosList extends Component
         return Filho::query()
             ->with(['user'])
             ->when($this->search, function ($query) {
-                $query->where(function ($q) {
-                    $q->where('name', 'like', '%' . $this->search . '%')
-                      ->orWhere('cpf', 'like', '%' . $this->search . '%')
-                      ->orWhereHas('user', function ($userQuery) {
-                          $userQuery->where('email', 'like', '%' . $this->search . '%');
+                $searchTerm = '%' . $this->search . '%';
+
+                $rawCpf = '%' . preg_replace('/[^0-9]/', '', $this->search) . '%';
+
+                $query->where(function ($q) use ($searchTerm, $rawCpf) {
+                    $q->where('cpf', 'like', $rawCpf)
+                      ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
+                            $userQuery->where('name', 'like',$searchTerm)
+                           ->orWhere('email', 'like', $searchTerm);
                       });
                 });
             })
