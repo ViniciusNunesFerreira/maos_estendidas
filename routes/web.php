@@ -84,7 +84,7 @@ Route::get('/send-mensage', function(){
                 $finais = [' já está disponível', ' foi liberado, tá', ' está ok! Agora é só acessar'];
                 $final = $finais[array_rand($finais)];
 
-                $msg = "{$saudacao} O seu acesso ao aplicativo Mãos Estendidas {$final} .";
+                $msg = "{$saudacao} está é uma mensagem de verificação {$final} .";
                 
                 $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
 
