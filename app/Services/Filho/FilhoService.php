@@ -72,9 +72,8 @@ class FilhoService
 
             try{
 
-                $msg = "Seja bem-vindo, filho(a)! Que bom que você se cadastrou...\nAgora, vamos cuidar da liberação do seu acesso.\nSeus dados foram salvos e já serão analisados para aprovação.\n Qualquer dúvida entre em contato conosco!";
-                
-                $filho->notify(new SendMessageWhatsApp($msg));
+                $delaySeconds = now()->addSeconds(rand(5, 60));
+                $filho->notify( (new SendMessageWhatsApp())->delay($delaySeconds) );
 
         
             }catch(\Exception $e){
@@ -93,9 +92,18 @@ class FilhoService
         float $subscriptionAmount = 120,
     ): Filho {
             try{
-                $msg = "Olá! Informamos que seu acesso ao aplicativo Mãos Estendidas já está disponível.\n Se ainda não realizou a instalação, você pode fazê-la de forma prática através do nosso site. Caso já o tenha instalado, utilize suas credenciais de cadastro para entrar.\n A partir de agora, você tem acesso total ao seu histórico financeiro e aos nossos materiais de desenvolvimento.";
+
+                $delaySeconds = now()->addSeconds(rand(5, 60));
+
+                $saudacoes = ['Olá! ', 'Oi ', 'Tudo bem? ', 'Oi amor! '];
+                $saudacao = $saudacoes[array_rand($saudacoes)];
+
+                $finais = [' já está disponível', ' foi liberado, tá', ' está ok! Agora é só acessar'];
+                $final = $finais[array_rand($finais)];
+
+                $msg = "{$saudacao} O seu acesso ao aplicativo Mãos Estendidas {$finais} .";
                 
-                $filho->notify(new SendMessageWhatsApp($msg));
+                $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
 
             }catch(\Exception $e){
                 \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());

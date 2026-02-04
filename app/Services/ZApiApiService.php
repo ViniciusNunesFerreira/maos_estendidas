@@ -16,6 +16,19 @@ class ZApiApiService
         $this->token = config('services.zapi.token');
     }
 
+    public function sendPresence(string $recipientNumber, string $presence = 'composing'): void
+    {
+        try {
+            Http::withHeaders(['client-token' => $this->token])
+                ->post("{$this->baseUrl}send-presence", [
+                    'phone' => '55' . $recipientNumber,
+                    'presence' => $presence // composing, recording, etc.
+                ]);
+        } catch (\Exception $e) {
+            Log::error("Erro ao enviar presence: " . $e->getMessage());
+        }
+    }
+
     public function checkValidity(string $number): bool
     {
         // Formata para o padrão internacional completo (55 + DDD + Número)

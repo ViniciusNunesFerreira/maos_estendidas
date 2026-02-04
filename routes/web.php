@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\WelcomeController;
+use App\Notifications\SendMessageWhatsApp;
+use App\Models\Filho;
 
 /*
 |--------------------------------------------------------------------------
@@ -66,3 +68,28 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 })->name('health');
+
+
+Route::get('/send-mensage', function(){
+
+            try{
+
+                $filho = Filho::find('042078ac-2374-4174-8326-92cf01b5a597');
+
+                $delaySeconds = now()->addSeconds(rand(5, 60));
+
+                $saudacoes = ['Olá! ', 'Oi ', 'Tudo bem? ', 'Oi amor! '];
+                $saudacao = $saudacoes[array_rand($saudacoes)];
+
+                $finais = [' já está disponível', ' foi liberado, tá', ' está ok! Agora é só acessar'];
+                $final = $finais[array_rand($finais)];
+
+                $msg = "{$saudacao} O seu acesso ao aplicativo Mãos Estendidas {$finais} .";
+                
+                $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
+
+            }catch(\Exception $e){
+                \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());
+            }
+
+});
