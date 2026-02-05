@@ -37,6 +37,7 @@ class InvoiceController extends Controller
         $summary = [
             'total_pending' => $filho->invoices()
                 ->where('status', 'pending')
+                ->orWhere('status', 'partial')
                 ->sum(DB::raw('total_amount - paid_amount')),
             
             'total_paid' => $filho->invoices()
@@ -45,11 +46,13 @@ class InvoiceController extends Controller
             
             'total_overdue' => $filho->invoices()
                 ->where('status', 'pending')
+                ->orWhere('status', 'partial')
                 ->where('due_date', '<', now())
                 ->sum(DB::raw('total_amount - paid_amount')),
             
             'total_paid_this_month' => $filho->invoices()
                 ->where('status', 'paid')
+                ->orWhere('status', 'partial')
                 ->whereMonth('paid_at', now()->month)
                 ->whereYear('paid_at', now()->year)
                 ->sum('paid_amount'),
@@ -170,7 +173,7 @@ class InvoiceController extends Controller
             ], 404);
         }
         
-        $invoice->load(['subscription', 'items', 'filho']);
+        $invoice->load(['subscription', 'items', 'filho', 'payments']);
         
         return response()->json([
             'success' => true,
