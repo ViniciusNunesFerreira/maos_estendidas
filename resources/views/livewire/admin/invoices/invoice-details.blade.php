@@ -107,8 +107,9 @@
             </div>
         </div>
 
+        
         <!-- Histórico de Pagamentos -->
-        @if($invoice->payments->count() > 0)
+        @if($invoice->payments()->count() > 0)
             <div class="px-6 py-4 border-t border-gray-200">
                 <h4 class="text-lg font-medium text-gray-900 mb-4">Histórico de Pagamentos</h4>
                 <div class="space-y-2">
