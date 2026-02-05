@@ -7,7 +7,12 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\WelcomeController;
 use App\Notifications\SendMessageWhatsApp;
+
 use App\Models\Filho;
+use App\Models\Invoice;
+use App\Models\Subscription;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,3 +73,55 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 })->name('health');
+
+
+Route::get('/manutencao-vincular-assinaturas', function () {
+    // 1. Verificação de segurança: Apenas usuários autenticados ou ambiente local
+    // if (app()->environment('production') && !auth()->check()) abort(403);
+
+    $report = [
+        'total_filhos_processados' => 0,
+        'invoices_vinculadas' => 0,
+        'erros' => []
+    ];
+
+    try {
+        DB::transaction(function () use (&$report) {
+            // Buscamos apenas filhos que possuem uma assinatura ativa
+            Filho::where('status', 'active')
+                ->whereHas('subscription', function($q) {
+                    $q->where('status', 'active');
+                })
+                ->chunk(100, function ($filhos) use (&$report) {
+                    foreach ($filhos as $filho) {
+                        $report['total_filhos_processados']++;
+
+                        // Pegamos a assinatura ativa atual do filho
+                        $subscription = $filho->subscription; 
+
+                        if ($subscription) {
+                            // Buscamos invoices do tipo 'subscription' deste filho que estão sem subscription_id
+                            $updatedCount = Invoice::where('filho_id', $filho->id)
+                                ->where('type', 'subscription')
+                                ->whereNull('subscription_id')
+                                ->update(['subscription_id' => $subscription->id]);
+
+                            $report['invoices_vinculadas'] += $updatedCount;
+                        }
+                    }
+                });
+        });
+
+        return response()->json([
+            'message' => 'Manutenção concluída com sucesso!',
+            'dados' => $report
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error("Erro na manutenção de assinaturas: " . $e->getMessage());
+        return response()->json([
+            'message' => 'Erro durante o processo',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
