@@ -25,11 +25,13 @@ class InvoicesList extends Component
     public function render()
     {
         $invoices = Invoice::query()
-            ->with(['filho'])
+            ->with(['filho.user'])
             ->when($this->search, fn($q) => 
                 $q->whereHas('filho', fn($fq) => 
+                    $fq->where('cpf', 'ilike', "%{$this->search}%")
+                )
+                ->orWhereHas('filho.user', fn($fq) =>
                     $fq->where('name', 'ilike', "%{$this->search}%")
-                       ->orWhere('cpf', 'like', "%{$this->search}%")
                 )
                 ->orWhere('invoice_number', 'ilike', "%{$this->search}%")
             )

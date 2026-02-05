@@ -31,8 +31,8 @@
                     <x-button 
                         variant="primary" 
                         type="button"
-                        x-data 
-                        @click="$dispatch('open-modal', 'generate-invoice-modal'); Livewire.dispatch('generateInvoice');"
+                        wire:click="$dispatch('generateInvoice')"
+                       
                         class="inline-flex items-center"
                     >
                         <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@
                                                     {{ $invoice->invoice_number }}
                                                     <span class="font-normal text-gray-500">| {{ $invoice->type === 'subscription' ? 'Mensalidade' : 'Consumo' }}</span>
                                                 </h4>
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium @if($invoice->status === 'paid') bg-green-100 text-green-600 @else bg-gray-100 text-gray-800 @endif">
                                                     {{ ucfirst($invoice->status) }}
                                                 </span>
                                             </div>
@@ -109,10 +109,14 @@
                                     <p class="text-lg font-bold text-gray-900">
                                         R$ {{ number_format($invoice->total_amount, 2, ',', '.') }}
                                     </p>
+                                    @if($invoice->status === 'partial')
+                                        <span class="items-center px-2 py-0.5 rounded text-sm font-medium bg-green-100 text-green-600">
+                                            - R$ {{ $invoice->paid_amount }}
+                                        </span>
+                                    @endif
                                     @if($invoice->status !== 'paid')
-                                        <button wire:click="openPaymentModal('{{ $invoice->id }}')" 
-                                            @click="$dispatch('open-modal', 'payment-modal')"
-                                            class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                        <button wire:click="$dispatch('prepare-payment', { invoiceId: '{{ $invoice->id }}' })"
+                                            class="text-sm text-blue-600 hover:text-blue-800 font-medium block mt-2">
                                             Registrar Pagamento
                                         </button>
                                     @endif
@@ -132,30 +136,11 @@
         </div>
     </div>
 
-    <!-- MODAL DE PAGAMENTO -->
-    <x-modal wire:model="showPaymentModal" name="payment-modal" title="Registrar Pagamento" maxWidth="sm">
-        <div class="p-6">
-            @if($selectedInvoice)
-                <div class="mb-4 text-center">
-                    <p class="text-sm text-gray-500">Pagamento da Fatura</p>
-                    <h3 class="text-lg font-bold">{{ $selectedInvoice->invoice_number }}</h3>
-                    <p class="text-red-600 font-bold mt-2">R$ {{ number_format($selectedInvoice->remaining_amount, 2, ',', '.') }}</p>
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700">Valor Pago</label>
-                    <input type="number" step="0.01" wire:model="paymentAmount" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    @error('paymentAmount') <span class="text-xs text-red-600">{{ $message }}</span> @enderror
-                </div>
-                <div class="flex justify-end space-x-3">
-                    <button wire:click="$set('showPaymentModal', false)" @click="$dispatch('close-modal', 'payment-modal')" class="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancelar</button>
-                    <button wire:click="registerPayment" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Confirmar</button>
-                </div>
-            @endif
-        </div>
-    </x-modal>
-
+         
+    
+   
     <!-- MODAL DE GERAÇÃO DE FATURA (CORRIGIDO) -->
-    <x-modal wire:model="showGenerateModal" name="generate-invoice-modal" title="Gerar Nova Fatura" maxWidth="lg">
+    <x-modal wire:key="generate-modal-invoice"  wire:model="showGenerateModal" name="generate-invoice-modal" title="Gerar Nova Fatura" maxWidth="lg">
         <div class="p-6">
             <div class="space-y-5">
                 
@@ -254,4 +239,7 @@
             </div>
         </div>
     </x-modal>
+
+    <!-- MODAL DE PAGAMENTO -->
+    <livewire:admin.invoices.payment-register wire:key="payment-reg-{{ $this->filho->id }}" />
 </div>

@@ -25,16 +25,7 @@ class InvoiceDetails extends Component
         session()->flash('message', 'Lembrete enviado com sucesso!');
     }
 
-    public function markAsPaid(): void
-    {
-        $this->invoice->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-        ]);
-        
-        session()->flash('message', 'Fatura marcada como paga!');
-        $this->invoice->refresh();
-    }
+    
 
     public function cancel(): void
     {

@@ -136,7 +136,7 @@
                                 {{ $invoice->due_date->format('d/m/Y') }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right">
-                                <a href="{{ route('admin.invoices.show', $invoice) }}" class="text-primary-600 hover:text-primary-900 text-sm font-medium">
+                                <a href="{{ route('admin.invoices.show', $invoice) }}" class="text-primary-600 hover:text-primary-900 text-sm  font-medium">
                                     Ver
                                 </a>
                             </td>

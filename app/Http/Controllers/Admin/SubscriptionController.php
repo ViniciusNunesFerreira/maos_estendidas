@@ -111,17 +111,17 @@ class SubscriptionController extends Controller
      */
     public function show(Subscription $subscription): View
     {
-        $invoicesPaid = $subscription->invoices()->paid();
+        $invoices = $subscription->invoices();
 
         $total_invoices = $subscription->invoices()->count();
-        $paid_invoices =  $invoicesPaid->count();
+        $paid_invoices =  $invoices->paid()->count();
         $paymentRate =  $total_invoices > 0 ? ($paid_invoices / $total_invoices ) * 100 : 0 ;
 
          $stats = [
             'total_invoices' => $total_invoices,
             'paid_invoices' => $paid_invoices,
             'payment_rate' => round($paymentRate, 2),
-            'total_paid' =>$invoicesPaid->sum('paid_amount'),
+            'total_paid' =>$invoices->sum('paid_amount'),
         ];
 
         $subscription->load([
@@ -290,7 +290,7 @@ class SubscriptionController extends Controller
         return Subscription::where('status', 'active')
             ->get()
             ->sum(function ($sub) {
-                return match ($sub->plan_type) {
+                return match ($sub->billing_cycle) {
                     'monthly' => $sub->amount,
                     'quarterly' => $sub->amount / 3,
                     'yearly' => $sub->amount / 12,

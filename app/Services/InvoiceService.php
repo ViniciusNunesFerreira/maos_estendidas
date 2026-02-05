@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\Invoice;
+use App\Models\Subscription;
 use App\Models\InvoiceItem;
 use App\Models\Filho;
 use App\Models\Order;
+use App\Models\Payment;
 use App\Jobs\SendInvoiceNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
@@ -99,102 +101,6 @@ class InvoiceService
         ];
     }
 
-    /**
-     * Processa o fechamento de fatura de consumo para um único filho.
-     * Centraliza a lógica que antes estava duplicada.
-     */
-   /* public function processInvoiceForFilho(Filho $filho, Carbon $referenceDate): ?Invoice
-    {
-        // Define o intervalo de busca de pedidos (mês anterior ao fechamento ou ciclo personalizado)
-        // Assumindo ciclo: dia X do mês anterior até dia X-1 deste mês
-        $billingDay = $filho->billing_close_day ?? 28;
-        $endDate = $referenceDate->copy()->day($billingDay)->endOfDay();
-        $startDate = $endDate->copy()->subMonth()->addDay()->startOfDay();
-
-        // Busca pedidos elegíveis (não faturados dentro do período)
-        $orders = Order::where('filho_id', $filho->id)
-            ->eligibleForInvoicing()
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->with(['items.product.category']) // Eager Loading para evitar N+1 na criação de itens
-            ->get();
-
-        if ($orders->isEmpty()) {
-            return null;
-        }
-
-        return DB::transaction(function () use ($filho, $orders, $startDate, $endDate) {
-            
-            // 1. Cria o Cabeçalho da Fatura
-            $dueDays = config('casalar.billing.invoice_due_days', 10);
-            $dueDate = $endDate->copy()->addDays($dueDays);
-
-            $invoice = Invoice::create([
-                'filho_id' => $filho->id,
-                'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
-                'type' => 'consumption',
-                'period_start' => $startDate,
-                'period_end' => $endDate,
-                'issue_date' => now(),
-                'due_date' => $dueDate,
-                'status' => 'pending', // Fatura gerada, aguardando pgto
-                'notes' => "Referente ao consumo de {$startDate->format('d/m')} a {$endDate->format('d/m')}",
-            ]);
-
-            $totalSubtotal = 0;
-            $totalDiscount = 0;
-
-            // 2. Processa os Itens e Vincula Pedidos
-            foreach ($orders as $order) {
-                // Atualiza o pedido para constar como faturado
-                $order->update([
-                    'invoice_id' => $invoice->id,
-                    'is_invoiced' => true,
-                    'invoiced_at' => now(),
-                ]);
-
-                // Transfere itens do pedido para itens da fatura (Snapshot)
-                foreach ($order->items as $orderItem) {
-                    $productName = $orderItem->product->name ?? $orderItem->product_name ?? 'Item Removido';
-                    $categoryName = $orderItem->product->category->name ?? $orderItem->category ?? 'Geral';
-                    $location = $order->origin ?? 'loja';
-
-                    InvoiceItem::create([
-                        'invoice_id' => $invoice->id,
-                        'order_id' => $order->id,
-                        'order_item_id' => $orderItem->id,
-                        'product_id' => $orderItem->product_id,
-                        'purchase_date' => $order->created_at->toDateString(),
-                        'description' => $productName,
-                        'category' => $categoryName,
-                        'location' => $location,
-                        'quantity' => $orderItem->quantity,
-                        'unit_price' => $orderItem->unit_price,
-                        'subtotal' => $orderItem->subtotal,
-                        'discount_amount' => $orderItem->discount ?? 0,
-                        'total' => $orderItem->total,
-                    ]);
-
-                    $totalSubtotal += $orderItem->subtotal;
-                    $totalDiscount += ($orderItem->discount ?? 0);
-                }
-            }
-
-            // 3. Atualiza Totais da Fatura
-            $invoice->update([
-                'subtotal' => $totalSubtotal,
-                'discount_amount' => $totalDiscount,
-                'total_amount' => $totalSubtotal - $totalDiscount,
-            ]);
-
-            // 4. Dispara Notificação (Assíncrono)
-            // Verifica se a classe existe antes de disparar
-            if (class_exists(SendInvoiceNotification::class)) {
-                SendInvoiceNotification::dispatch($invoice);
-            }
-
-            return $invoice;
-        });
-    }*/
 
     /**
      * Cria a fatura individual (Método helper privado)
@@ -244,6 +150,7 @@ class InvoiceService
      */
     //Função antiga comentada para correção em : 03/02/2026
     public function generateSubscriptionInvoice(
+        Subscription $subscription,
         Filho $filho, 
         float $amount, 
         Carbon $periodStart,
@@ -251,14 +158,15 @@ class InvoiceService
         Carbon $dueDate
     ): Invoice
     {
-        return DB::transaction(function () use ($filho, $amount, $periodStart, $periodEnd, $dueDate) {
+        return DB::transaction(function () use ($subscription, $filho, $amount, $periodStart, $periodEnd, $dueDate) {
             
             // Formatamos a competência baseada no início do período
             $competencia = $periodStart->format('m/Y');
 
             $invoice = Invoice::create([
                 'filho_id' => $filho->id,
-                'type' => 'subscription', 
+                'type' => 'subscription',
+                'subscription_id' => $subscription->id, 
                 'invoice_number' => Invoice::generateNextInvoiceNumber('subscription'),
                 'period_start' => $periodStart,
                 'period_end' => $periodEnd,
@@ -281,6 +189,8 @@ class InvoiceService
                 'total' => $amount,
                 'purchase_date' => now(),
             ]);
+
+           // $invoice->subscription()->associate($subscription);
 
             return $invoice;
         });
@@ -439,6 +349,63 @@ class InvoiceService
         ];
 
         return array_merge($fixedHolidays, $movableHolidays);
+    }
+
+
+    /**
+     * Registra um pagamento manual para uma fatura.
+     */
+    public function registerManualPayment(Invoice $invoice, array $data): Payment
+    {
+        return DB::transaction(function () use ($invoice, $data) {
+            // 1. Criar o registro de Pagamento (Payment)
+            $payment = Payment::create([
+                'invoice_id'    => $invoice->id,
+                'method'        => $data['method'], // ex: 'dinheiro', 'pix'
+                'amount'        => $data['amount'],
+                'status'        => 'confirmed',
+                'confirmed_at'  => now(),
+                'gateway_name'  => 'manual', // Identifica que não veio de API externa
+                'reference'     => $data['reference'] ?? null, // Ex: ID da transação bancária
+            ]);
+
+            // 2. Atualizar a Fatura (Invoice) com o máximo de detalhes para relatórios
+            // O modelo Invoice possui campos de controle que precisam ser sincronizados.
+            $newPaidAmount = $invoice->paid_amount + $data['amount'];
+            
+            // Determinar novo status
+            $status = $newPaidAmount >= $invoice->total_amount ? 'paid' : 'partial';
+
+            $invoice->update([
+                'paid_amount'   => $newPaidAmount,
+                'status'        => $status,
+                'paid_at'       => $status === 'paid' ? now() : $invoice->paid_at,
+                'internal_notes'=> $this->appendNote($invoice->internal_notes, $data['internal_notes']),
+            ]);
+
+            // 3. Restaurar crédito do Filho (se aplicável)
+            // Se a fatura é de consumo, ao pagar, liberamos o limite gasto.
+            if ($invoice->filho) {
+                $invoice->filho->restoreCredit($data['amount']);
+                $invoice->filho->checkAndUpdateBlockStatus(); // Verifica se o pagamento remove bloqueios
+            }
+
+            Log::info("Pagamento manual registrado", [
+                'invoice_id' => $invoice->id,
+                'payment_id' => $payment->id,
+                'user_id'    => auth()->id()
+            ]);
+
+            return $payment;
+        });
+    }
+
+    private function appendNote(?string $currentNotes, ?string $newNote): ?string
+    {
+        if (!$newNote) return $currentNotes;
+        $date = now()->format('d/m/Y H:i');
+        $user = auth()->user()->name ?? 'Sistema';
+        return ($currentNotes ? $currentNotes . "\n" : "") . "[{$date} - {$user}]: {$newNote}";
     }
 
 

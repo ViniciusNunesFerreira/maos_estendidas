@@ -66,7 +66,14 @@ document.addEventListener('livewire:init', () => {
 // --- Funções de Máscara ---
 window.maskCurrency = function(input) {
     // 1. Remove tudo que não é dígito
-    let value = input.value.replace(/\D/g, '');
+    let value = input.value;
+
+    
+    if (typeof value === 'string' && value.includes('.') && !value.includes(',')) {
+        value = parseFloat(value).toFixed(2).replace('.', '');
+    } else {
+        value = value.replace(/\D/g, '');
+    }
     
     if (value === '') {
         if (input.value !== '') {
@@ -81,11 +88,10 @@ window.maskCurrency = function(input) {
     let formatted = new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL',
-        minimumFractionDigits: 2
+        minimumFractionDigits: 2        
     }).format(amount);
 
-    // 3. SEGURANÇA: Só atualiza e dispara o evento se o valor mudou de fato
-    // Isso quebra o loop infinito
+    
     if (input.value !== formatted) {
         input.value = formatted;
         

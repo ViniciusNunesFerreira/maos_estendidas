@@ -95,46 +95,6 @@ class SubscriptionService
     
 
     /**
-     * Criar assinatura para filho aprovado
-     */
-    //função comentada para correção das datas de faturamento momentaneo para teste; 03/02/2026
-   /* public function createForFilho(
-        Filho $filho, 
-        float $amount = null, 
-    ): Subscription {
-        $amount = $amount ?? config('casalar.subscription.default_amount', 120);
-        $billingDates = $this->calcularDatasFaturamento(1);
-
-        return DB::transaction(function () use ($filho, $amount, $billingDates) {
-        
-            $subscription = Subscription::create([
-                'filho_id' => $filho->id,
-                'approved_by_user_id' => auth()->user()->id,
-                'plan_name' => 'Mensalidade Mãos Estendidas',
-                'plan_description' => 'Mensalidade recorrente para filhos do Mãos Estendidas',
-                'amount' => $amount,
-                'billing_cycle' => 'monthly',
-                'billing_day' => 28,
-                'started_at' => now(),
-                'first_billing_date' => $billingDates['first_billing_date'],
-                'next_billing_date' => $billingDates['next_billing_date'],
-                'status' => 'active',
-            ]);
-
-             // Gerar primeira fatura
-            $this->invoiceService->generateSubscriptionInvoice(
-                filho: $filho,
-                amount: $amount,
-                referenceMonth: Carbon::now(),
-            );
-
-            return $subscription;
-
-         });
-    }*/
-
-
-    /**
     * Criar assinatura para filho aprovado
     */
     public function createForFilho(Filho $filho, float $amount = null): Subscription 
@@ -167,6 +127,7 @@ class SubscriptionService
 
             // Gera a primeira fatura IMEDIATAMENTE com as datas calculadas
             $this->invoiceService->generateSubscriptionInvoice(
+                subscription: $subscription,
                 filho: $filho,
                 amount: $amount,
                 periodStart: $dates['period_start'],

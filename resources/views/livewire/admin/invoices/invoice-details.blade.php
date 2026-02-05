@@ -15,10 +15,14 @@
                         Download PDF
                     </button>
                     @if($invoice->status !== 'paid')
-                        <button wire:click="registerPayment" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
+                        <button wire:click="$dispatch('prepare-payment', { invoiceId: '{{ $invoice->id }}' })"
+                                @click="$dispatch('open-modal', 'payment-modal')"
+                                class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600">
                             Registrar Pagamento
                         </button>
                     @endif
+
+                   
                 </div>
             </div>
         </div>
@@ -111,8 +115,8 @@
                     @foreach($invoice->payments as $payment)
                         <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                             <div>
-                                <p class="text-sm font-medium text-gray-900">{{ $payment->payment_method }}</p>
-                                <p class="text-xs text-gray-500">{{ $payment->paid_at->format('d/m/Y H:i') }}</p>
+                                <p class="text-sm font-medium text-gray-900">{{ $payment->method }}</p>
+                                <p class="text-xs text-gray-500">{{ $payment->confirmed_at?->format('d/m/Y H:i') }}</p>
                             </div>
                             <p class="text-lg font-bold text-green-600">R$ {{ number_format($payment->amount, 2, ',', '.') }}</p>
                         </div>
@@ -121,4 +125,7 @@
             </div>
         @endif
     </div>
+
+    <livewire:admin.invoices.payment-register />
+    
 </div>

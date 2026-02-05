@@ -57,7 +57,8 @@ class Invoice extends Model
         'sat_number',
         'sat_key',
         'sat_qrcode',
-        'sat_xml'
+        'sat_xml',
+        'subscription_id'
     ];
 
     protected $casts = [
@@ -128,7 +129,6 @@ class Invoice extends Model
 
     public function subscription(): BelongsTo
     {
-        // Se a tabela invoices tiver a coluna subscription_id
         return $this->belongsTo(Subscription::class);
     }
 
@@ -185,7 +185,7 @@ class Invoice extends Model
 
     public function scopePaid($query)
     {
-        return $query->where('status', 'paid');
+        return $query->where('status', 'paid')->orWhere('status', 'partial');
     }
 
     public function scopePending($query)

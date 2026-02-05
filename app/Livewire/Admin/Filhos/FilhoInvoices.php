@@ -61,6 +61,7 @@ class FilhoInvoices extends Component
         $this->showGenerateModal = true;
         // Opcional: Forçar reset de erros
         $this->resetValidation();
+        $this->dispatch('open-modal', 'generate-invoice-modal');
     }
 
     public function resetGenerateForm(): void
@@ -135,11 +136,14 @@ class FilhoInvoices extends Component
     private function createSubscriptionInvoice(): void
     {
         $refDate = Carbon::createFromFormat('Y-m', $this->newReferenceMonth)->startOfMonth();
+
+        $subscriptionID =  $this->filho->subscription?->id;
         
         $invoice = Invoice::create([
             'filho_id' => $this->filho->id,
             'invoice_number' => Invoice::generateNextInvoiceNumber('subscription'),
             'type' => 'subscription',
+            'subscription_id' => $subscriptionID, 
             'period_start' => $refDate,
             'period_end' => $refDate->copy()->endOfMonth(),
             'issue_date' => now(),

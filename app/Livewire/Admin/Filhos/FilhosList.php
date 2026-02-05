@@ -91,26 +91,34 @@ class FilhosList extends Component
     
     public function getFilhosProperty()
     {
-        return Filho::query()
-            ->with(['user'])
-            ->when($this->search, function ($query) {
-                $searchTerm = '%' . $this->search . '%';
+       return Filho::query()
+        ->with(['user']) 
+        // 1. Filtro de Busca (Nome, Email ou CPF)
+        ->when($this->search, function ($query) {
+            $searchTerm = '%' . $this->search . '%';
+            $rawCpf = '%' . preg_replace('/[^0-9]/', '', $this->search) . '%';
 
-                $rawCpf = '%' . preg_replace('/[^0-9]/', '', $this->search) . '%';
-
-                $query->where(function ($q) use ($searchTerm, $rawCpf) {
-                    $q->where('cpf', 'like', $rawCpf)
-                      ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
-                            $userQuery->where('name', 'like',$searchTerm)
-                           ->orWhere('email', 'like', $searchTerm);
-                      });
+            // É CRUCIAL envolver os ORs em uma função anônima para isolar a lógica
+            $query->where(function ($q) use ($searchTerm, $rawCpf) {
+                // Busca direta na tabela de filhos (PgSql ilike para case-insensitive)
+                $q->where('cpf', 'ilike', $rawCpf)
+                
+                // Busca na tabela relacionada 'users'
+                ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
+                    $userQuery->where(function ($uq) use ($searchTerm) {
+                        $uq->where('name', 'ilike', $searchTerm)
+                           ->orWhere('email', 'ilike', $searchTerm);
+                    });
                 });
-            })
-            ->when($this->status, function ($query) {
-                $query->where('status', $this->status);
-            })
-            ->orderBy($this->orderBy, $this->orderDirection)
-            ->paginate($this->perPage);
+            });
+        })
+        // 2. Filtro de Status (Isolado da busca)
+        ->when($this->status, function ($query) {
+            $query->where('status', $this->status);
+        })
+        // 3. Ordenação e Paginação
+        ->orderBy($this->orderBy, $this->orderDirection)
+        ->paginate($this->perPage);
     }
     
     public function render()

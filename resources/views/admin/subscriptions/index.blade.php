@@ -27,7 +27,7 @@
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500">Ativas</p>
-                        <p class="text-2xl font-semibold text-gray-900">{{ $activeCount ?? 0 }}</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ $stats['active'] ?? 0 }}</p>
                     </div>
                 </div>
             </div>
@@ -39,7 +39,7 @@
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500">Pausadas</p>
-                        <p class="text-2xl font-semibold text-gray-900">{{ $pausedCount ?? 0 }}</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ $stats['paused'] ?? 0 }}</p>
                     </div>
                 </div>
             </div>
@@ -51,7 +51,7 @@
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500">Canceladas</p>
-                        <p class="text-2xl font-semibold text-gray-900">{{ $cancelledCount ?? 0 }}</p>
+                        <p class="text-2xl font-semibold text-gray-900">{{ $stats['cancelled'] ?? 0 }}</p>
                     </div>
                 </div>
             </div>
@@ -62,8 +62,8 @@
                         <x-icon name="currency-dollar" class="h-8 w-8 text-blue-500" />
                     </div>
                     <div class="ml-4">
-                        <p class="text-sm font-medium text-gray-500">Receita Mensal</p>
-                        <p class="text-2xl font-semibold text-gray-900">R$ {{ number_format(($activeCount ?? 0) * 350, 2, ',', '.') }}</p>
+                        <p class="text-sm font-medium text-gray-500">Receita Mensal <small>(PREVISÃO)</small></p>
+                        <p class="text-2xl font-semibold text-gray-900">R$ {{ number_format( $stats['mrr'] ?? 0, 2, ',', '.') }}</p>
                     </div>
                 </div>
             </div>

@@ -59,7 +59,7 @@
                     </svg>
                 </div>
                 <div class="ml-5">
-                    <p class="text-sm font-medium text-gray-500">Faturas Pagas</p>
+                    <p class="text-sm font-medium text-gray-500">Faturas Pagas <small>(Total|Parcial)</small></p>
                     <p class="text-2xl font-bold text-gray-900">{{ $stats['paid_invoices'] }}</p>
                     <p class="text-xs text-gray-500">{{ $stats['payment_rate'] }}% adimplência</p>
                 </div>
@@ -203,12 +203,13 @@
                                         {{ $invoice->due_date->format('d/m/Y') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                                        R$ {{ number_format($invoice->total, 2, ',', '.') }}
+                                        R$ {{ number_format($invoice->paid_amount, 2, ',', '.') }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         @php
                                             $invoiceStatus = [
-                                                'open' => ['bg' => 'bg-blue-100', 'text' => 'text-blue-800', 'label' => 'Aberta'],
+                                                'pending' => ['bg' => 'bg-blue-100', 'text' => 'text-blue-800', 'label' => 'Aberta'],
+                                                'partial' => ['bg' => 'bg-yellow-100', 'text' => 'text-blue-800', 'label' => 'Paga Parcial'],
                                                 'paid' => ['bg' => 'bg-green-100', 'text' => 'text-green-800', 'label' => 'Paga'],
                                                 'overdue' => ['bg' => 'bg-red-100', 'text' => 'text-red-800', 'label' => 'Vencida'],
                                             ];

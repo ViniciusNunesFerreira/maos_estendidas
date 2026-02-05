@@ -55,6 +55,7 @@ class Payment extends Model
         'gateway_response' => 'array',
         'authorized_at' => 'datetime',
         'confirmed_at' => 'datetime',
+        'paid_at' => 'datetime',
         'failed_at' => 'datetime',
         'refunded_at' => 'datetime',
         'mp_response' => 'array',
