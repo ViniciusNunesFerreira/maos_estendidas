@@ -473,6 +473,9 @@ class ExternalPaymentService
         $filho = $invoice->filho;
         $user = $filho->user;
 
+        \Log::info('email do cartão: '.$user->email);
+        \Log::debug((array) $filho->user);
+
         return [
             'transaction_amount' => (float) $invoice->total_amount,
             'token' => $cardToken,

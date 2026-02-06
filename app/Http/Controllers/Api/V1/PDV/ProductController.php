@@ -20,7 +20,7 @@ class ProductController extends Controller
     {
         $query = Product::query()
             ->where('is_active', true)
-            ->whereIn('location', ['loja', 'ambos'])
+            ->whereIn('location', ['loja', 'cantina'])
             ->with(['category:id,name,slug,icon,color']);
 
         // Filtro por categoria
