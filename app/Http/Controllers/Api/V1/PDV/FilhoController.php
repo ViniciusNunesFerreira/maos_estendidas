@@ -29,21 +29,21 @@ class FilhoController extends Controller
                 ->with(['user' => function($q) {
                             $q->select(['id', 'name', 'email']); // Projeção no filho também!
                         }])
-                ->where('status', 'active')
                 ->where(function($mainQuery) use ($cleanQuery, $query) {
+
+                        \Log::info($query);
                     // Agrupamos os ORs para não quebrar a lógica do status = active
-                    $mainQuery->where('cpf', 'ilike', "%{$cleanQuery}%")
-                            ->orWhereHas('user', function($q) use ($query) {
+                    $mainQuery->whereHas('user', function($q) use ($query) {
                                 $q->where('name', 'ilike', "%{$query}%")
                                     ->orWhere('email', 'ilike', "%{$query}%");
-                            });
+                            })
+                            ->orWhere('cpf', 'ilike', "%{$cleanQuery}%")
                 })
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get();
         
                 
-
         if (!$filhos) {
             return response()->json([
                 'success' => false,
