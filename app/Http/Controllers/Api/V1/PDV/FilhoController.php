@@ -34,10 +34,8 @@ class FilhoController extends Controller
                         \Log::info($query);
                     // Agrupamos os ORs para não quebrar a lógica do status = active
                     $mainQuery->whereHas('user', function($q) use ($query) {
-                                $q->where('name', 'ilike', "%{$query}%")
-                                    ->orWhere('email', 'ilike', "%{$query}%");
-                            })
-                            ->orWhere('cpf', 'ilike', "%{$cleanQuery}%")
+                                $q->where('name', 'ilike', "%{$query}%");
+                            })->orWhere('cpf', 'ilike', "%{$cleanQuery}%");
                 })
                 ->orderBy('id', 'desc')
                 ->limit(10)
