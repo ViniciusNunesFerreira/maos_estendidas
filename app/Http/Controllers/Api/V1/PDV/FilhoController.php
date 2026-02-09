@@ -28,7 +28,8 @@ class FilhoController extends Controller
                 ->select(['id','user_id', 'cpf', 'credit_limit', 'credit_used', 'is_blocked_by_debt','block_reason', 'status'])
                 ->with(['user' => function($q) {
                             $q->select(['id', 'name', 'email']); // Projeção no filho também!
-                        }]) // Eager loading essencial
+                        }])
+                ->where('status', 'active')
                 ->where(function($mainQuery) use ($cleanQuery, $query) {
                     // Agrupamos os ORs para não quebrar a lógica do status = active
                     $mainQuery->where('cpf', 'ilike', "%{$cleanQuery}%")
@@ -37,9 +38,11 @@ class FilhoController extends Controller
                                     ->orWhere('email', 'ilike', "%{$query}%");
                             });
                 })
-                ->where('status', 'active')
-                ->limit(5)
+                ->orderBy('id', 'desc')
+                ->limit(10)
                 ->get();
+        
+                
 
         if (!$filhos) {
             return response()->json([
