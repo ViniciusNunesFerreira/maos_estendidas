@@ -26,16 +26,19 @@ class FilhoController extends Controller
 
         $filhos = Filho::query()
                 ->select(['id','user_id', 'cpf', 'credit_limit', 'credit_used', 'is_blocked_by_debt','block_reason', 'status'])
-                ->with(['user' => function($q) {
-                            $q->select(['id', 'name', 'email']); // Projeção no filho também!
-                        }])
+                ->with(['user:id,name,email'])
                 ->where(function($mainQuery) use ($cleanQuery, $query) {
 
-                        \Log::info($query);
-                    // Agrupamos os ORs para não quebrar a lógica do status = active
+                    // Busca por Nome (Sempre executa)
                     $mainQuery->whereHas('user', function($q) use ($query) {
-                                $q->where('name', 'ilike', "%{$query}%");
-                            })->orWhere('cpf', 'ilike', "%{$cleanQuery}%");
+                        $q->where('name', 'ilike', "%{$query}%");
+                    });
+
+                    // Busca por CPF (SÓ executa se houver números na busca)
+                    if (!empty($cleanQuery)) {
+                        $mainQuery->orWhere('cpf', 'ilike', "%{$cleanQuery}%");
+                    }
+                   
                 })
                 ->orderBy('id', 'desc')
                 ->limit(10)
