@@ -76,6 +76,10 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($request->cpf ?: $request->ip());
         });
 
+        RateLimiter::for('search_api', function (Request $request) {
+            return Limit::perMinute(100)->by($request->ip());
+        });
+
        // Invoice::observe(InvoiceObserver::class);
        // Order::observe(OrderObserver::class);
         Product::observe(ProductObserver::class);

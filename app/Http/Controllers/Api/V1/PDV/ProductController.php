@@ -20,8 +20,13 @@ class ProductController extends Controller
     {
         $query = Product::query()
             ->where('is_active', true)
-            ->whereIn('location', ['loja', 'cantina'])
+            ->where('available_pdv', true)
+            ->whereIn('type', ['loja', 'cantina'])
             ->with(['category:id,name,slug,icon,color']);
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
 
         // Filtro por categoria
         if ($request->filled('category_id')) {
@@ -40,14 +45,14 @@ class ProductController extends Controller
 
         // Apenas com estoque
         if ($request->boolean('in_stock', true)) {
-            $query->where('stock', '>', 0);
+            $query->where('stock_quantity', '>', 0);
         }
 
         // Ordenação
         $sortBy = $request->input('sort_by', 'name');
         $sortDirection = $request->input('sort_direction', 'asc');
         
-        if (in_array($sortBy, ['name', 'price', 'stock', 'created_at'])) {
+        if (in_array($sortBy, ['name', 'price', 'created_at'])) {
             $query->orderBy($sortBy, $sortDirection);
         }
 
@@ -59,10 +64,14 @@ class ProductController extends Controller
                 'barcode' => $product->barcode,
                 'price' => $product->price,
                 'cost_price' => $product->cost_price,
-                'stock' => $product->stock,
-                'stock_min' => $product->stock_min,
-                'is_low_stock' => $product->stock <= $product->stock_min,
+                'track_stock' => $product->track_stock,
+                'stock_quantity' => $product->stock_quantity,
+                'min_stock_alert' => $product->min_stock_alert,
+                'is_low_stock' => $product->stock_quantity <= $product->min_stock_alert,
                 'image_url' => $product->image_url,
+                'category_id' => $product->category_id,
+                'is_active' => $product->is_active,
+                'available_pdv' => $product->available_pdv,
                 'category' => $product->category ? [
                     'id' => $product->category->id,
                     'name' => $product->category->name,
@@ -177,11 +186,10 @@ class ProductController extends Controller
             ->where('is_active', true)
             ->withCount(['products' => function ($q) {
                 $q->where('is_active', true)
-                  ->whereIn('location', ['loja', 'ambos'])
-                  ->where('stock', '>', 0);
+                  ->whereIn('type', ['loja', 'cantina'])
+                  ->where('stock_quantity', '>', 0);
             }])
-            ->orderBy('sort_order')
-            ->orderBy('name')
+            ->orderBy('order')
             ->get()
             ->map(function ($category) {
                 return [

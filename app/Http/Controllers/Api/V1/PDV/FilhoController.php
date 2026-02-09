@@ -16,45 +16,55 @@ class FilhoController extends Controller
      */
     public function search(Request $request): JsonResponse
     {
-        $request->validate([
-            'query' => 'required|string|min:3',
-        ]);
 
         $query = $request->query('query');
-        
+
+        if (strlen($query) < 3) return response()->json([]);
+
         // Limpar CPF se for numérico
         $cleanQuery = preg_replace('/\D/', '', $query);
 
-        $filho = Filho::query()
-            ->where(function ($q) use ($query, $cleanQuery) {
-                $q->where('cpf', 'like', "%{$cleanQuery}%")
-                  ->orWhere('registration_code', $query)
-                  ->orWhere('name', 'ilike', "%{$query}%");
-            })
-            ->where('status', 'active')
-            ->first();
+        $filhos = Filho::query()
+                ->select(['id','user_id', 'cpf', 'credit_limit', 'credit_used', 'is_blocked_by_debt','block_reason', 'status'])
+                ->with(['user' => function($q) {
+                            $q->select(['id', 'name', 'email']); // Projeção no filho também!
+                        }]) // Eager loading essencial
+                ->where(function($mainQuery) use ($cleanQuery, $query) {
+                    // Agrupamos os ORs para não quebrar a lógica do status = active
+                    $mainQuery->where('cpf', 'ilike', "%{$cleanQuery}%")
+                            ->orWhereHas('user', function($q) use ($query) {
+                                $q->where('name', 'ilike', "%{$query}%")
+                                    ->orWhere('email', 'ilike', "%{$query}%");
+                            });
+                })
+                ->where('status', 'active')
+                ->limit(5)
+                ->get();
 
-        if (!$filho) {
+        if (!$filhos) {
             return response()->json([
                 'success' => false,
                 'message' => 'Filho não encontrado ou inativo',
             ], 404);
         }
 
+        $dataMapped = $filhos->map(function($filho) {
+                        return [
+                            'id'                => $filho->id,
+                            'full_name'         => $filho->full_name, // O Laravel resolve o Attribute aqui
+                            'cpf_formatted'     => $filho->cpf_formatted,
+                            'credit_limit'      => (float) $filho->credit_limit,
+                            'credit_used'       => (float) $filho->credit_used,
+                            'credit_available'  => (float) ($filho->credit_available),
+                            'is_blocked_by_debt'=> (bool) $filho->is_blocked_by_debt,
+                            'block_reason'      => $filho->block_reason,
+                            'photo_url'         => $filho->photo_url
+                        ];
+                    });
+
         return response()->json([
             'success' => true,
-            'data' => [
-                'id' => $filho->id,
-                'name' => $filho->name,
-                'cpf' => $filho->cpf_masked,
-                'photo_url' => $filho->photo_url,
-                'credit_limit' => $filho->credit_limit,
-                'credit_used' => $filho->credit_used,
-                'credit_available' => $filho->credit_available,
-                'is_blocked' => $filho->is_blocked,
-                'status' => $filho->status,
-                'has_pending_invoices' => $filho->invoices()->whereIn('status', ['pending', 'overdue'])->exists(),
-            ],
+            'data' => $dataMapped
         ]);
     }
 

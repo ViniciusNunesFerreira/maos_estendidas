@@ -125,12 +125,12 @@
                                 <img src="{{ Storage::url($order->filho->photo_url) }}" class="w-12 h-12 rounded-full object-cover">
                             @else
                                 <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
-                                    <span class="text-lg font-semibold text-primary-600">{{ substr($order->filho->name, 0, 1) }}</span>
+                                    <span class="text-lg font-semibold text-primary-600">{{ substr($order->filho->full_name, 0, 1) }}</span>
                                 </div>
                             @endif
                             
                             <div>
-                                <p class="font-medium text-gray-900">{{ $order->filho->name }}</p>
+                                <p class="font-medium text-gray-900">{{ $order->filho->full_name }}</p>
                                 <a href="{{ route('admin.filhos.show', $order->filho) }}" class="text-sm text-primary-600 hover:text-primary-700">
                                     Ver perfil →
                                 </a>
@@ -165,10 +165,10 @@
                                         'credito' => 'Cartão de Crédito',
                                         'debito' => 'Cartão de Débito',
                                         'dinheiro' => 'Dinheiro',
-                                        'credit' => 'Crédito Filho',
+                                        'carteira' => 'Crédito Filho',
                                     ];
                                 @endphp
-                                {{ $methodLabels[$order->payment_method] ?? $order->payment_method ?? 'Crédito Filho' }}
+                                {{ $methodLabels[$order->payment_method_chosen] ?? $order->payment_method_chosen ?? 'Crédito Filho' }}
                             </span>
                         </div>
                         @if($order->payment_confirmed_at)
@@ -189,10 +189,10 @@
                 @endif
 
                 {{-- Operador --}}
-                @if($order->operator)
+                @if($order->createdBy)
                     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <h3 class="text-lg font-semibold text-gray-900 mb-4">Operador</h3>
-                        <p class="text-sm text-gray-600">{{ $order->operator->name }}</p>
+                        <p class="text-sm text-gray-600">{{ $order->createdBy->name }}</p>
                     </div>
                 @endif
             </div>

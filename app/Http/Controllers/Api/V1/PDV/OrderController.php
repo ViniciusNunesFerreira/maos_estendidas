@@ -3,11 +3,12 @@
 namespace App\Http\Controllers\Api\V1\PDV;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Order\StoreOrderFromPDVRequest;
+use App\Http\Requests\Order\StoreOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\DTOs\CreateOrderDTO;
 use App\Services\OrderService;
 use App\Models\Order;
+use App\Models\Filho;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -83,91 +84,43 @@ class OrderController extends Controller
      * 
      * Suporta:
      * - Vendas para filhos (crédito)
-     * - Vendas para visitantes (pagamento imediato)
+     * - Vendas para visitantes (pagamento imediato) 
      */
-    public function store(StoreOrderFromPDVRequest $request): JsonResponse
+    public function store(StoreOrderRequest $request): JsonResponse
     {
         try {
-            // Criar DTO
             $dto = CreateOrderDTO::fromRequest(
                 data: $request->validated(),
                 userId: auth()->id()
             );
 
-            // Criar pedido
-            $order = $this->orderService->create($dto);
-
-            // Preparar resposta baseado no tipo de cliente
-            $responseData = [
-                'order' => new OrderResource($order),
-            ];
-
-            // Se filho, incluir info de crédito
-            if ($dto->isFilho() && $order->filho) {
-                $filho = $order->filho->fresh();
-                $responseData['credit_info'] = [
-                    'credit_limit' => (float) $filho->credit_limit,
-                    'credit_used' => (float) $filho->credit_used,
-                    'credit_available' => (float) $filho->credit_available,
-                    'usage_percent' => (float) $filho->credit_usage_percent,
-                ];
-            }
-
-            // Se visitante, confirmar pagamento
-            if ($dto->isGuest()) {
-                $responseData['payment'] = [
-                    'method' => $request->payment_method,
-                    'amount' => $request->payment_amount,
-                    'status' => 'paid',
-                ];
+            if ($dto->customerType === 'filho') {
+                // Buscamos apenas o modelo simples, o lock acontece dentro do Service
+                $filho = Filho::findOrFail($dto->filhoId);
+                $order = $this->orderService->createOrderForFilho($filho, $dto);
+            } else {
+                // Lógica para Guest (Visitante)
+                $order = $this->orderService->createOrderForGuest(
+                    items: $request->input('items'),
+                    guestName: $dto->guestName,
+                    guestDocument: $dto->guestDocument,
+                    guestPhone: $dto->guestPhone,
+                    origin: $dto->origin,
+                    createdByUserId: auth()->id()
+                );
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pedido criado com sucesso',
-                'data' => $responseData,
+                'message' => 'Venda realizada com sucesso',
+                'data' => new OrderResource($order),
             ], 201);
 
         } catch (\App\Exceptions\InsufficientCreditException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_code' => 'INSUFFICIENT_CREDIT',
-            ], 422);
-
-        } catch (\App\Exceptions\FilhoBlockedException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_code' => 'FILHO_BLOCKED',
-            ], 403);
-
-        } catch (\App\Exceptions\InsufficientStockException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_code' => 'INSUFFICIENT_STOCK',
-            ], 422);
-
-        } catch (\App\Exceptions\ProductNotAvailableException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_code' => 'PRODUCT_NOT_AVAILABLE',
-            ], 422);
-
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'error_code' => 'INSUFFICIENT_CREDIT'], 422);
         } catch (\Exception $e) {
-            \Log::error('Erro ao criar pedido no PDV', [
-                'user_id' => auth()->id(),
-                'device_id' => $request->device_id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao criar pedido',
-                'error_code' => 'INTERNAL_ERROR',
-            ], 500);
+            \Log::error("Erro PDV: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erro interno no servidor'], 500);
         }
     }
 

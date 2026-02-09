@@ -19,7 +19,7 @@ class OrderDetails extends Component
         $this->order = $order->load([
             'filho.user',
             'items.product.category',
-            'operator',
+            'createdBy',
             'payments',
         ]);
     }
@@ -97,6 +97,7 @@ class OrderDetails extends Component
         $statusLabels = [
             'pending' => ['label' => 'Pendente', 'color' => 'yellow'],
             'confirmed' => ['label' => 'Confirmado', 'color' => 'blue'],
+            'delivered' => ['label' => 'Entregue', 'color' => 'green'],
             'preparing' => ['label' => 'Preparando', 'color' => 'indigo'],
             'ready' => ['label' => 'Pronto', 'color' => 'green'],
             'completed' => ['label' => 'Entregue', 'color' => 'gray'],

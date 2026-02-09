@@ -23,6 +23,7 @@ class StoreOrderRequest extends FormRequest
         
         // PDV: usuário deve ter permissão
         if ($this->isFromPDV()) {
+            \Log::info('veio do pdv');
             return auth()->check() && auth()->user()->can('orders.create');
         }
         
@@ -36,18 +37,20 @@ class StoreOrderRequest extends FormRequest
     {
         $rules = [
             // Items do pedido (comum para App e PDV)
-            'items' => ['required', 'array', 'min:1', 'max:50'],
+            'origin' => ['required'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:99'],
-            'items.*.notes' => ['nullable', 'string', 'max:500'],
-            'items.*.modifiers' => ['nullable', 'array'],
+            'items.*.subtotal' => ['required'],
+            'created_by_user_id' => 'nullable|uuid',
+            'subtotal' => ['required'],
+            'total' => ['required']
             
             // Observações gerais
-            'notes' => ['nullable', 'string', 'max:1000'],
-            'kitchen_notes' => ['nullable', 'string', 'max:500'],
+           // 'notes' => ['nullable', 'string', 'max:1000'],
+           // 'kitchen_notes' => ['nullable', 'string', 'max:500'],
             
-            // Metadados
-            'metadata' => ['nullable', 'array'],
+           
         ];
 
         // Regras específicas do PDV
@@ -86,20 +89,22 @@ class StoreOrderRequest extends FormRequest
                 ],
                 
                 // Device ID (PDV)
-                'device_id' => ['required', 'string', 'max:100'],
+                'device_id' => ['nullable', 'string', 'max:100'],
+
+                'payment_method_chosen' => 'required|string',
                 
                 // Pagamento imediato para visitantes
-                'payment_method' => [
+               /* 'payment_method_chosen' => [
                     Rule::requiredIf($this->customer_type === 'guest'),
                     'nullable',
                     Rule::in(['cash', 'debit', 'credit', 'pix'])
                 ],
-                'payment_amount' => [
+                'payment_method_chosen' => [
                     Rule::requiredIf($this->customer_type === 'guest'),
                     'nullable',
                     'numeric',
                     'min:0'
-                ],
+                ],*/
             ]);
         }
 
@@ -136,11 +141,13 @@ class StoreOrderRequest extends FormRequest
             'guest_name.required' => 'Nome do visitante é obrigatório',
             
             'device_id.required' => 'Identificação do PDV é obrigatória',
-            
-            'payment_method.required' => 'Forma de pagamento é obrigatória para visitantes',
-            'payment_amount.required' => 'Valor do pagamento é obrigatório',
-            
+
             'discount_reason.required' => 'Motivo do desconto é obrigatório',
+            
+           /* 'payment_method.required' => 'Forma de pagamento é obrigatória para visitantes',
+            'payment_amount.required' => 'Valor do pagamento é obrigatório',*/
+            
+            
         ];
     }
 
@@ -194,14 +201,16 @@ class StoreOrderRequest extends FormRequest
                 }
                 
                 // Bloqueado por inadimplência
-                if (!$filho->can_purchase) {
+                if ($filho->is_blocked_by_debt) {
                     $reasons = [];
+
+                    $total_overdue_invoices = $filho->invoices()->where('status', 'overdue')->count();
                     
                     if ($filho->is_blocked_by_debt) {
-                        $reasons[] = "Possui {$filho->total_overdue_invoices} fatura(s) vencida(s)";
+                        $reasons[] = "Possui {$total_overdue_invoices} fatura(s) vencida(s)";
                     }
-                    
-                    if ($filho->total_overdue_invoices >= $filho->max_overdue_invoices) {
+
+                    if ($total_overdue_invoices >= $filho->max_overdue_invoices) {
                         $reasons[] = "Limite de faturas vencidas atingido";
                     }
                     

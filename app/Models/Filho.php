@@ -20,6 +20,7 @@ class Filho extends Model
     use SoftDeletes;
     use Auditable;
     use Notifiable;
+    
 
     protected $table = 'filhos';
 
@@ -28,10 +29,7 @@ class Filho extends Model
         'cpf',
         'birth_date',
         'mother_name',        
-        'rg',
-        'rg_emissor',
         'phone',
-
         'address',
         'address_number',
         'address_complement',
@@ -73,7 +71,7 @@ class Filho extends Model
         'status' => 'inactive',
     ];
 
-    protected $appends = ['age', 'is_mensalidade_due', 'status_label', 'status_color', 'photo_url'];
+    protected $appends = ['age', 'is_mensalidade_due', 'status_label', 'status_color', 'photo_url', 'credit_available'];
 
     // Relacionamentos
     public function user(): BelongsTo
@@ -234,10 +232,15 @@ class Filho extends Model
     }
 
 
-    public function getAgeAttribute(): int
+    public function getAgeAttribute()
     {
-        return $this->birth_date->age;
+        $dataAtual = new \DateTime();
+        $date2 = new \DateTime($this->birth_date); 
+        $age =  $dataAtual->diff($date2);
+        return $age->y;
     }
+
+    
 
 
     // Scopes

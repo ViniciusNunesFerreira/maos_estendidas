@@ -209,14 +209,14 @@ Route::prefix('v1')->group(function () {
         // =====================================================
         // PDV DESKTOP (ability:pdv:*)
         // =====================================================
-        
+        //->middleware('ability:pdv:*')
         Route::prefix('pdv')
-            ->middleware('ability:pdv:*')
+            
             ->group(function () {
             
             // Busca de Filhos
             Route::prefix('filhos')->group(function () {
-                Route::get('/search', [PDVFilhoController::class, 'search']);
+                Route::get('/search', [PDVFilhoController::class, 'search'])->middleware('throttle:search_api');;
                 Route::get('/{cpf}', [PDVFilhoController::class, 'getByCpf']);
                 Route::get('/{cpf}/balance', [PDVFilhoController::class, 'getBalance']);
             });

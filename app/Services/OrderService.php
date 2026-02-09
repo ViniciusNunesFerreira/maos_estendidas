@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Exception;
+use App\DTOs\CreateOrderDTO;
 
 /**
  * Order Service - Gestão Unificada de Pedidos
@@ -43,53 +44,58 @@ class OrderService
      * @param string|null $createdById ID do usuário que criou (operador PDV)
      * @return Order
      */
-    public function createOrderForFilho(
-        Filho $filho,
-        array $items,
-        string $origin = 'app',
-        ?string $notes = null,
-        ?string $createdById = null
-    ): Order {
-        return DB::transaction(function () use ($filho, $items, $origin, $notes) {
-            
-            // 1. Validações de negócio
+    public function createOrderForFilho(Filho $filho, CreateOrderDTO $data): Order 
+    {
+        return DB::transaction(function () use ($filho, $data) {
+            // 1. Bloqueio por Pessimistic Locking no Filho para evitar gasto duplo simultâneo
+            $filho = Filho::where('id', $filho->id)->lockForUpdate()->first();
+
             if ($filho->is_blocked_by_debt) {
-                throw new Exception($filho->block_reason ?? 'Filho bloqueado para compras');
+                throw new \App\Exceptions\FilhoBlockedException($filho->block_reason ?? 'Filho bloqueado para compras');
             }
 
-            if (!$filho->can_purchase) {
-                throw new Exception('Filho não pode realizar compras no momento');
-            }
-
-            // 2. Validar e preparar items
-            $preparedItems = $this->validateAndPrepareItems($items);
-
-            // 3. Calcular totais
+            // 2. Validar e preparar itens (já possui lockForUpdate nos produtos internamente)
+            $preparedItems = $this->validateAndPrepareItems($data->items);
             $subtotal = collect($preparedItems)->sum('subtotal');
-            $discount = 0; // Implementar lógica de cupom se necessário
-            $total = $subtotal - $discount;
+            $total = $subtotal - ($data->discount ?? 0);
 
-            // 4. Criar pedido
+            // 3. Regra de Negócio: Pagamento via Carteira
+            $isWallet = $data->payment_method === 'carteira';
+            
+            if ($isWallet) {
+                if ($total > $filho->credit_available) {
+                    throw new \App\Exceptions\InsufficientCreditException("Crédito insuficiente. Disponível: R$ " . number_format($filho->credit_available, 2, ',', '.'));
+                }
+                // Debitar da carteira
+                $filho->increment('credit_used', $total);
+            }
+
+            // 4. Determinar status (PDV + Carteira = Delivered)
+            $isDeliveredImmediately = ($data->origin === 'pdv' && $isWallet);
+            $orderStatus = $isDeliveredImmediately ? 'delivered' : 'pending';
+            $itemStatus = $isDeliveredImmediately ? 'delivered' : 'pending';
+
+            // 5. Criar Pedido
             $order = Order::create([
-                'order_number' => $this->generateOrderNumber($origin),
+                'order_number' => $this->generateOrderNumber($data->origin),
                 'filho_id' => $filho->id,
-                'created_by_user_id' => $createdById ?? $filho->user_id,
+                'created_by_user_id' => $data->createdByUserId,
                 'customer_type' => 'filho',
                 'customer_name' => $filho->user->name ?? 'Filho',
                 'customer_cpf' => $filho->cpf,
-                'origin' => $origin,
-                'status' => 'pending',
-                'payment_status' => 'pending',
+                'origin' => $data->origin,
+                'status' => $orderStatus,
+                'payment_method_chosen' => $data->payment_method,
                 'subtotal' => $subtotal,
-                'discount_amount' => $discount,
+                'discount' => $data->discount ?? 0,
                 'total' => $total,
-                'notes' => $notes,
+                'paid_at' => $isWallet ? now() : null, // Se for carteira, já está "pago" (debitado no limite)
+                'delivered_at' => $isDeliveredImmediately ? now() : null,
             ]);
 
-            // 5. Criar items
+            // 6. Criar Itens com status condicional
             foreach ($preparedItems as $item) {
-                OrderItem::create([
-                    'order_id' => $order->id,
+                $order->items()->create([
                     'product_id' => $item['product_id'],
                     'product_name' => $item['product_name'],
                     'product_sku' => $item['product_sku'],
@@ -97,20 +103,12 @@ class OrderService
                     'unit_price' => $item['unit_price'],
                     'subtotal' => $item['subtotal'],
                     'total' => $item['total'],
-                    'preparation_status' => $item['preparation_status'],
+                    'preparation_status' => $itemStatus,
                 ]);
             }
 
-            // 6. Reservar estoque (será decrementado de fato no pagamento)
+            // 7. Decrementar Estoque
             $this->decrementStock($preparedItems);
-
-            Log::info('Pedido criado para filho', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'filho_id' => $filho->id,
-                'total' => $total,
-                'origin' => $origin,
-            ]);
 
             return $order->load(['items.product', 'filho.user']);
         });
@@ -359,10 +357,11 @@ class OrderService
     /**
      * Validar estoque e preparar items com preços atuais
      */
-    protected function validateAndPrepareItems(array $rawItems): array
+    protected function validateAndPrepareItems(iterable $rawItems): array
     {
         $prepared = [];
-        $productIds = collect($rawItems)->pluck('product_id')->unique();
+        
+        $productIds = collect($rawItems)->map(fn($item) => $item->productId)->unique();
 
         $products = Product::whereIn('id', $productIds)
             ->where('is_active', true)
@@ -371,17 +370,17 @@ class OrderService
             ->keyBy('id');
 
         foreach ($rawItems as $item) {
-            $product = $products->get($item['product_id']);
+            $product = $products->get($item->productId);
 
             if (!$product) {
-                throw new Exception("Produto ID {$item['product_id']} não encontrado ou inativo");
+                throw new Exception("Produto ID {$item->productId} não encontrado ou inativo");
             }
 
-            if ($product->track_stock && $product->stock_quantity < $item['quantity']) {
+            if ($product->track_stock && $product->stock_quantity < $item->quantity) {
                 throw new Exception("Estoque insuficiente para o produto: {$product->name}");
             }
 
-            $quantity = (int) $item['quantity'];
+            $quantity = (int) $item->quantity;
             $unitPrice = (float) $product->price;
 
             $prepared[] = [
@@ -391,8 +390,7 @@ class OrderService
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'subtotal' => $quantity * $unitPrice,
-                'total' => $quantity * $unitPrice,
-                'preparation_status' => $product->requires_preparation ? 'pending' : 'delivered',
+                'total' => $quantity * $unitPrice
             ];
         }
 

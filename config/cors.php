@@ -32,6 +32,7 @@ return [
         'http://localhost:3000',             
         'http://localhost:5173',
         'http://localhost:1420',
+        'tauri://localhost'
     ],
 
     'allowed_origins_patterns' => [],
@@ -43,7 +44,8 @@ return [
         'Accept', 
         'Origin', 
         'X-XSRF-TOKEN', // Essencial para Sanctum
-        'X-Socket-Id'    // Essencial para Broadcasting
+        'X-Socket-Id',    // Essencial para Broadcasting
+        'X-Origin'
     ],
 
     'exposed_headers' => [],

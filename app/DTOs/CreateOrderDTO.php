@@ -18,6 +18,8 @@ class CreateOrderDTO
         // Identificação do Cliente
         public readonly string $customerType,  // 'filho' | 'guest'
         public readonly ?string $filhoId,      // UUID do filho (obrigatório se customerType = filho)
+
+        public readonly string $payment_method,
         
         // Dados do Visitante (obrigatório se customerType = guest)
         public readonly ?string $guestName,
@@ -38,11 +40,11 @@ class CreateOrderDTO
         public readonly float $total,          // Total final
         
         // Observações
-        public readonly ?string $notes,        // Observações gerais
-        public readonly ?string $kitchenNotes, // Observações para cozinha
+       // public readonly ?string $notes,        // Observações gerais
+       // public readonly ?string $kitchenNotes, // Observações para cozinha
         
         // Metadados
-        public readonly array $metadata = [],  // Dados extras (ex: mesa, local)
+      //  public readonly array $metadata = [],  // Dados extras (ex: mesa, local)
     ) {
         $this->validate();
     }
@@ -52,7 +54,6 @@ class CreateOrderDTO
      */
     public static function fromRequest(array $data, string $userId): self
     {
-        \Log::info('Id usuario: '.$userId);
         // Determinar customer_type
         $customerType = $data['customer_type'] ?? 'filho';
         
@@ -84,9 +85,10 @@ class CreateOrderDTO
             subtotal: $subtotal,
             discount: $discount,
             total: $total,
-            notes: $data['notes'] ?? null,
-            kitchenNotes: $data['kitchen_notes'] ?? null,
-            metadata: $data['metadata'] ?? [],
+            payment_method: $data['payment_method_chosen'],
+           // notes: $data['notes'] ?? null,
+           // kitchenNotes: $data['kitchen_notes'] ?? null,
+           // metadata: $data['metadata'] ?? [],
         );
     }
 
@@ -202,9 +204,10 @@ class CreateOrderDTO
             'subtotal' => $this->subtotal,
             'discount' => $this->discount,
             'total' => $this->total,
-            'notes' => $this->notes,
-            'kitchen_notes' => $this->kitchenNotes,
-            'metadata' => $this->metadata,
+            'payment_method' => $this->payment_method
+            //'notes' => $this->notes,
+           // 'kitchen_notes' => $this->kitchenNotes,
+           // 'metadata' => $this->metadata,
         ];
     }
 }
