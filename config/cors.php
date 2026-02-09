@@ -32,7 +32,8 @@ return [
         'http://localhost:3000',             
         'http://localhost:5173',
         'http://localhost:1420',
-        'tauri://localhost'
+        'tauri://localhost',
+        'http://tauri.localhost'
     ],
 
     'allowed_origins_patterns' => [],
