@@ -45,7 +45,11 @@ return [
         'Origin', 
         'X-XSRF-TOKEN', // Essencial para Sanctum
         'X-Socket-Id',    // Essencial para Broadcasting
-        'X-Origin'
+        'X-Origin',
+        'Cache-Control', // Adicionado
+        'Pragma',        // Adicionado
+        'Expires',       // Adicionado
+        'X-App-Inertia', // Se usar Inertia
     ],
 
     'exposed_headers' => [],

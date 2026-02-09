@@ -19,7 +19,7 @@ class FilhoController extends Controller
 
         $query = $request->query('query');
 
-        if (strlen($query) < 3) return response()->json([]);
+        if (strlen($query) < 5) return response()->json([]);
 
         // Limpar CPF se for numérico
         $cleanQuery = preg_replace('/\D/', '', $query);
