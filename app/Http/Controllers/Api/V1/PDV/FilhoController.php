@@ -63,6 +63,8 @@ class FilhoController extends Controller
                         ];
                     });
 
+        \Log::debug($dataMapped);
+
         return response()->json([
             'success' => true,
             'data' => $dataMapped
