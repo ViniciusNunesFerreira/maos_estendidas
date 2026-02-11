@@ -1,4 +1,3 @@
-{{-- resources/views/admin/invoices/index.blade.php --}}
 <x-layouts.admin title="Faturas">
     <div class="space-y-6">
         {{-- Header --}}

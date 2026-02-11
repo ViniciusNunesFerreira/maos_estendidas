@@ -133,11 +133,9 @@ class Order extends Model
      */
     public function scopeEligibleForInvoicing($query)
     {
-        return $query->where('customer_type', 'filho')
-                     ->whereNotNull('filho_id')
-                     ->where('is_invoiced', false)
-                     ->where('status', '!=', 'cancelled')
-                     ->whereNull('invoice_id'); // Garante que não está vinculado
+        return $query->where('is_invoiced', false)
+                    ->where('customer_type', 'filho')
+                    ->where('status', 'delivered');
     }
 
     public function scopeCompleted($query)

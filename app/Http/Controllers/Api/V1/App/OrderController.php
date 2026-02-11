@@ -37,6 +37,7 @@ class OrderController extends Controller
         }
 
         $orders = Order::where('filho_id', $filho->id)
+            ->eligibleForInvoicing()
             ->with(['items.product', 'payment'])
             ->orderBy('created_at', 'desc')
             ->paginate(20);

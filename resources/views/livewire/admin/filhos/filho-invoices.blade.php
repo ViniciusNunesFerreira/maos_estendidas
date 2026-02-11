@@ -92,7 +92,10 @@
                                         <div>
                                             <div class="flex items-center space-x-2">
                                                 <h4 class="text-sm font-bold text-gray-900">
-                                                    {{ $invoice->invoice_number }}
+                                                    <a href="{{ route('admin.invoices.show', $invoice->id ) }}" 
+                                                    class="text-sm font-medium text-primary-600 hover:text-primary-700">
+                                                        {{ $invoice->invoice_number }}
+                                                    </a>
                                                     <span class="font-normal text-gray-500">| {{ $invoice->type === 'subscription' ? 'Mensalidade' : 'Consumo' }}</span>
                                                 </h4>
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium @if($invoice->status === 'paid') bg-green-100 text-green-600 @else bg-gray-100 text-gray-800 @endif">

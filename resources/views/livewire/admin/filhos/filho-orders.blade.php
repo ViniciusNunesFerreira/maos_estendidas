@@ -5,7 +5,7 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h3 class="text-lg font-medium text-gray-900">Pedidos do Filho</h3>
-                    <p class="mt-1 text-sm text-gray-500">Histórico de pedidos de {{ $filho->name }}</p>
+                    <p class="mt-1 text-sm text-gray-500">Histórico de pedidos de {{ $filho->fullname }}</p>
                 </div>
             </div>
 
@@ -90,7 +90,7 @@
                                                 </span>
                                             </div>
                                             <div class="mt-1 text-sm text-gray-500">
-                                                {{ $order->created_at->format('d/m/Y H:i') }} • {{ $order->items_count }} itens
+                                                {{ $order->created_at->format('d/m/Y H:i') }} • {{ $order->items()->count() }} itens
                                                 @if($order->source)
                                                     • Origem: {{ ucfirst($order->source) }}
                                                 @endif
@@ -99,10 +99,10 @@
                                     </div>
                                 </div>
                                 <div class="ml-6 flex flex-col items-end space-y-2">
-                                    <p class="text-xl font-bold text-gray-900">R$ {{ number_format($order->total_amount, 2, ',', '.') }}</p>
-                                    <button wire:click="viewOrder('{{ $order->id }}')" class="text-sm text-blue-600 hover:text-blue-800">
+                                    <p class="text-xl font-bold text-gray-900">R$ {{ number_format($order->total, 2, ',', '.') }}</p>
+                                    <a href="{{ route('admin.orders.show', $order->id ) }}" class="text-sm text-blue-600 hover:text-blue-800">
                                         Ver detalhes →
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
                         </div>

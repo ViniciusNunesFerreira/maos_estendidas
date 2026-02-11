@@ -172,11 +172,11 @@ class FilhoInvoices extends Component
         $endDate = Carbon::parse($this->newPeriodEnd)->endOfDay();
 
         $orders = Order::where('filho_id', $this->filho->id)
-            ->where('customer_type', 'filho')
-            ->where('is_invoiced', false)
-            ->where('status', 'completed') // Apenas concluídos
+            ->eligibleForInvoicing()
             ->whereBetween('created_at', [$startDate, $endDate])
+            ->with(['items.product', 'payment'])
             ->get();
+
 
         if ($orders->isEmpty()) {
             $this->addError('newPeriodStart', 'Nenhum pedido pendente encontrado neste período.');
@@ -198,7 +198,7 @@ class FilhoInvoices extends Component
         $totalSubtotal = 0;
 
         foreach ($orders as $order) {
-            $order->update(['invoice_id' => $invoice->id, 'is_invoiced' => true, 'invoiced_at' => now()]);
+            $order->update(['invoice_id' => $invoice->id, 'is_invoiced' => true, 'invoiced_at' => now(), 'status' => 'completed']);
             
             foreach ($order->items as $item) {
                 InvoiceItem::create([

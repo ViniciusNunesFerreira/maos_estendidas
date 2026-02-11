@@ -1,4 +1,3 @@
-{{-- resources/views/livewire/admin/invoices/invoices-list.blade.php --}}
 <div>
     {{-- Estatísticas --}}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

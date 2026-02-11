@@ -16,10 +16,10 @@
                 <select wire:model.live="statusFilter" class="w-full border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500">
                     <option value="">Todos os status</option>
                     <option value="pending">Pendente</option>
-                    <option value="confirmed">Confirmado</option>
                     <option value="preparing">Preparando</option>
                     <option value="ready">Pronto</option>
-                    <option value="completed">Entregue</option>
+                    <option value="delivered">Entregue</option>
+                     <option value="completed">Completo/Pago</option>
                     <option value="cancelled">Cancelado</option>
                 </select>
             </div>
@@ -85,12 +85,12 @@
                                                 <img class="h-8 w-8 rounded-full object-cover" src="{{ Storage::url($order->filho->photo_url) }}" alt="">
                                             @else
                                                 <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                                                    <span class="text-xs font-medium text-primary-600">{{ substr($order->filho->name, 0, 1) }}</span>
+                                                    <span class="text-xs font-medium text-primary-600">{{ substr($order->filho->full_name, 0, 1) }}</span>
                                                 </div>
                                             @endif
                                         </div>
                                         <div class="ml-3">
-                                            <p class="text-sm font-medium text-gray-900">{{ Str::limit($order->filho->name, 20) }}</p>
+                                            <p class="text-sm font-medium text-gray-900">{{ Str::limit($order->filho->full_name, 20) }}</p>
                                             <p class="text-xs text-gray-500">Filho</p>
                                         </div>
                                     @else

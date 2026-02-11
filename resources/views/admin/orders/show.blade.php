@@ -1,6 +1,6 @@
 {{-- resources/views/admin/orders/show.blade.php --}}
 <x-layouts.admin title="Detalhes do Pedido">
-    <div class="max-w-4xl mx-auto">
+    <div class="space-y-6">
         {{-- Breadcrumbs --}}
         <nav class="flex mb-6" aria-label="Breadcrumb">
             <ol class="inline-flex items-center space-x-1 md:space-x-3">

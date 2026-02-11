@@ -1,4 +1,4 @@
-{{-- resources/views/livewire/admin/orders/order-details.blade.php --}}
+
 <div>
     @if (session()->has('message'))
         <div class="mb-4 p-4 bg-green-100 border border-green-200 text-green-700 rounded-lg">
@@ -83,7 +83,7 @@
                         <div class="px-6 py-4 flex items-center justify-between">
                             <div class="flex items-center space-x-4">
                                 @if($item->product->image_url)
-                                    <img src="{{ Storage::url($item->product->image_url) }}" class="w-12 h-12 rounded-lg object-cover">
+                                    <img src="{{ $item->product->image_url }}" class="w-12 h-12 rounded-lg object-cover">
                                 @else
                                     <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
                                         <x-icon name="package" class="w-6 h-6 text-gray-400" />
@@ -122,7 +122,7 @@
                     @if($order->filho)
                         <div class="flex items-center space-x-4">
                             @if($order->filho->photo_url)
-                                <img src="{{ Storage::url($order->filho->photo_url) }}" class="w-12 h-12 rounded-full object-cover">
+                                <img src="{{ $order->filho->photo_url }}" class="w-12 h-12 rounded-full object-cover">
                             @else
                                 <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
                                     <span class="text-lg font-semibold text-primary-600">{{ substr($order->filho->full_name, 0, 1) }}</span>
