@@ -36,10 +36,13 @@ class InvoiceController extends Controller
         
         $summary = [
             'total_pending' => $filho->invoices()
-                ->where('status', 'pending')
-                ->orWhere('status', 'partial')
-                ->sum(DB::raw('total_amount - paid_amount')),
-            
+                ->whereIn('status', ['pending', 'partial'])
+                ->select('id', 'total_amount', 'paid_amount')
+                ->get()
+                ->sum(function ($invoice) {
+                    return $invoice->total_amount - ($invoice->paid_amount ?? 0);
+                }),
+                        
             'total_paid' => $filho->invoices()
                 ->where('status', 'paid')
                 ->sum('paid_amount'),
@@ -48,7 +51,7 @@ class InvoiceController extends Controller
                 ->where('status', 'pending')
                 ->orWhere('status', 'partial')
                 ->where('due_date', '<', now())
-                ->sum(DB::raw('total_amount - paid_amount')),
+                ->sum(DB::raw('COALESCE(total_amount, 0) - COALESCE(paid_amount, 0)')),
             
             'total_paid_this_month' => $filho->invoices()
                 ->where('status', 'paid')
