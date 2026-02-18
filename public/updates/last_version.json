@@ -1,0 +1,11 @@
+{
+  "version": "1.1.1",
+  "notes": "Correções no fluxo de caixa e melhoria na performance.",
+  "pub_date": "2026-02-18T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "",
+      "url": "https://maosestendidas.paitonayede.com.br/pdv-install/maos-estendidas_1.1.1_x64_en-US.zip"
+    }
+  }
+}
