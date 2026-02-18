@@ -254,7 +254,7 @@ class PaymentIntentService
                     'number' => preg_replace('/\D/', '', '449.765.008-10'),
                 ],
             ],
-            'notification_url' => "https://eomlimb9byboaq8.m.pipedream.net",  //route('api.webhooks.mercadopago'),
+            'notification_url' => route('api.webhooks.mercadopago'),
             
             'metadata' => [
                 'entity_type' => 'order',
