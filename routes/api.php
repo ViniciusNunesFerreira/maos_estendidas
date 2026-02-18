@@ -19,6 +19,9 @@ use App\Http\Controllers\Api\V1\PDV\ProductController as PDVProductController;
 use App\Http\Controllers\Api\V1\PDV\OrderController as PDVOrderController;
 use App\Http\Controllers\Api\V1\PDV\PaymentController as PDVPaymentController;
 use App\Http\Controllers\Api\V1\PDV\SyncController as PDVSyncController;
+use App\Http\Controllers\Api\V1\PDV\CashSessionController as PDVCashSessionController;
+use App\Http\Controllers\Api\V1\PDV\PaymentIntentController as PDVPaymentIntentController;
+
 use App\Http\Controllers\Api\V1\Totem\MenuController as TotemMenuController;
 use App\Http\Controllers\Api\V1\Totem\OrderController as TotemOrderController;
 use App\Http\Controllers\Api\V1\Totem\PaymentController as TotemPaymentController;
@@ -72,6 +75,7 @@ Route::prefix('v1')->group(function () {
     // =========================================================
 
     Route::prefix('webhooks')->group(function () {
+
         Route::post('/mercadopago', [MercadoPagoWebhookController::class, 'handle'])
             ->middleware('verify.mercadopago.signature')
             ->name('api.webhooks.mercadopago');
@@ -80,9 +84,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/payment/notification', [WebhookPaymentController::class, 'notification'])
             ->middleware('verify.payment.signature');
         
-        // Twilio SMS
-        Route::post('/sms/status', [WebhookSmsController::class, 'status'])
-            ->middleware('verify.twilio.signature');
+        Route::post('/getnet/payment-status', [GetnetWebhookController::class, 'handlePaymentStatus'])
+            ->name('webhooks.getnet.payment-status');
+    
+        // Health check do webhook
+        Route::get('/getnet/health', [GetnetWebhookController::class, 'health'])
+            ->name('webhooks.getnet.health');
+
     });
 
     // =========================================================
@@ -210,9 +218,7 @@ Route::prefix('v1')->group(function () {
         // PDV DESKTOP (ability:pdv:*)
         // =====================================================
         //->middleware('ability:pdv:*')
-        Route::prefix('pdv')
-            
-            ->group(function () {
+        Route::prefix('pdv')->group(function () {
             
             // Busca de Filhos
             Route::prefix('filhos')->group(function () {
@@ -233,10 +239,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/categories', [PDVProductController::class, 'categories']);
             
             // Pedidos
-            Route::prefix('orders')->group(function () {
+            Route::middleware('check.cash.session')->prefix('orders')->group(function () {
                 Route::get('/', [PDVOrderController::class, 'index']);
                 Route::post('/', [PDVOrderController::class, 'store']);
-                Route::get('/{order}', [PDVOrderController::class, 'show']);
+              //  Route::get('/{order}', [PDVOrderController::class, 'show']);
                 Route::put('/{order}', [PDVOrderController::class, 'update']);
                 Route::post('/{order}/cancel', [PDVOrderController::class, 'cancel']);
             });
@@ -246,6 +252,13 @@ Route::prefix('v1')->group(function () {
                 Route::post('/process', [PDVPaymentController::class, 'process']);
                 Route::post('/refund', [PDVPaymentController::class, 'refund']);
             });
+
+             Route::prefix('payment-intents')->controller(PDVPaymentIntentController::class)->group(function () {
+                Route::post('/', 'create')->name('api.pdv.payment-intents.create');
+               // Route::get('/{intent}', 'show')->name('api.pdv.payment-intents.show');
+                Route::delete('/{intent}', 'cancel')->name('api.pdv.payment-intents.cancel');
+                Route::post('/{intent}/check', 'checkStatus')->name('api.pdv.payment-intents.check');
+            });
             
             // Sincronização Offline
             Route::prefix('sync')->group(function () {
@@ -253,6 +266,42 @@ Route::prefix('v1')->group(function () {
                 Route::get('/pending', [PDVSyncController::class, 'pending']);
                 Route::post('/resolve-conflicts', [PDVSyncController::class, 'resolveConflicts']);
             });
+
+            Route::prefix('cash')->group(function () {
+                Route::get('/status', [PDVCashSessionController::class, 'status']);
+                Route::post('/open', [PDVCashSessionController::class, 'open']);
+                Route::post('/movement', [PDVCashSessionController::class, 'movement']); // Sangria/Suprimento
+                Route::post('/close', [PDVCashSessionController::class, 'close']);
+            });
+
+            Route::prefix('getnet')->name('pdv.getnet.')->group(function () {
+
+                // Criar pagamento no terminal
+                Route::post('payments', [GetnetPaymentController::class, 'create'])
+                    ->name('payments.create');
+                
+                // Listar transações
+                Route::get('transactions', [GetnetPaymentController::class, 'index'])
+                    ->name('transactions.index');
+                
+                // Ver transação específica
+                Route::get('transactions/{transaction}', [GetnetPaymentController::class, 'show'])
+                    ->name('transactions.show');
+                
+                // Consultar status atualizado (polling fallback)
+                Route::post('transactions/{transaction}/check-status', [GetnetPaymentController::class, 'checkStatus'])
+                    ->name('transactions.check-status');
+                
+                // Cancelar transação
+                Route::post('transactions/{transaction}/cancel', [GetnetPaymentController::class, 'cancel'])
+                    ->name('transactions.cancel');
+                
+                // Listar terminais disponíveis
+                Route::get('terminals', [GetnetPaymentController::class, 'terminals'])
+                    ->name('terminals.index');
+
+            });
+
         });
 
         // =====================================================

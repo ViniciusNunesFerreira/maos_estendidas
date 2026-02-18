@@ -37,12 +37,6 @@ class OrderService
     /**
      * Criar pedido para FILHO (App ou PDV)
      * 
-     * @param Filho $filho Filho que está comprando
-     * @param array $items Array de items: [['product_id' => uuid, 'quantity' => int]]
-     * @param string $origin 'app' | 'pdv' | 'totem'
-     * @param string|null $notes Observações
-     * @param string|null $createdById ID do usuário que criou (operador PDV)
-     * @return Order
      */
     public function createOrderForFilho(Filho $filho, CreateOrderDTO $data): Order 
     {
@@ -114,61 +108,47 @@ class OrderService
         });
     }
 
-    /**
-     * Criar pedido para VISITANTE (PDV ou Totem)
-     * 
-     * @param array $items Array de items
-     * @param string $guestName Nome do visitante
-     * @param string|null $guestDocument CPF/RG (opcional)
-     * @param string|null $guestPhone Telefone (opcional)
-     * @param string $origin 'pdv' | 'totem'
-     * @param string|null $notes Observações
-     * @param int|null $createdById ID do operador
-     * @return Order
-     */
-    public function createOrderForGuest(
-        array $items,
-        string $guestName,
-        ?string $guestDocument = null,
-        ?string $guestPhone = null,
-        string $origin = 'pdv',
-        ?string $notes = null,
-        ?int $createdById = null
-    ): Order {
-        return DB::transaction(function () use (
-            $items, $guestName, $guestDocument, $guestPhone, $origin, $notes, $createdById
-        ) {
+   
+    public function createOrderForGuest(  CreateOrderDTO $data ): Order {
+
+        return DB::transaction(function () use ($data) {
             
             // 1. Validar e preparar items
-            $preparedItems = $this->validateAndPrepareItems($items);
+            $preparedItems = $this->validateAndPrepareItems($data->items);
 
             // 2. Calcular totais
             $subtotal = collect($preparedItems)->sum('subtotal');
-            $discount = 0;
-            $total = $subtotal - $discount;
+            $total = $subtotal - ($data->discount ?? 0);
+
+            $methods = ['dinheiro', 'credito', 'debito'];
+            // 4. Determinar status (PDV + Dinheiro = Delivered)
+            $isDeliveredImmediately = ($data->origin === 'pdv' && in_array($data->payment_method, $methods) );
+            $orderStatus = $isDeliveredImmediately ? 'completed' : 'pending';
+            $itemStatus = $isDeliveredImmediately ? 'delivered' : 'pending';
+
 
             // 3. Criar pedido
             $order = Order::create([
-                'order_number' => $this->generateOrderNumber($origin),
-                'created_by_user_id' => $createdById,
-                'customer_type' => 'guest',
-                'customer_name' => $guestName,
-                'guest_name' => $guestName,
-                'guest_document' => $guestDocument,
-                'customer_phone' => $guestPhone,
-                'origin' => $origin,
-                'status' => 'pending',
-                'payment_status' => 'pending',
+                'order_number' => $this->generateOrderNumber($data->origin),
+                'created_by_user_id' => $data->createdByUserId,
+                'customer_type' => $data->customerType,
+                'customer_name' => $data->guestName,
+                'guest_name' => $data->guestName,
+                'origin' => $data->origin,
+                'status' => $orderStatus,
+                'is_invoiced' => $isDeliveredImmediately ? true : false,
+                'invoiced_at' => $isDeliveredImmediately ? now() : null,
+                'payment_method_chosen' => $data->payment_method,
                 'subtotal' => $subtotal,
-                'discount_amount' => $discount,
+                'discount_amount' => $data->discount ?? 0,
                 'total' => $total,
-                'notes' => $notes,
+                'paid_at' => $isDeliveredImmediately ? now() : null,
+                'delivered_at' => $isDeliveredImmediately ? now() : null,
             ]);
 
             // 4. Criar items
             foreach ($preparedItems as $item) {
-                OrderItem::create([
-                    'order_id' => $order->id,
+                $order->items()->create([
                     'product_id' => $item['product_id'],
                     'product_name' => $item['product_name'],
                     'product_sku' => $item['product_sku'],
@@ -176,20 +156,12 @@ class OrderService
                     'unit_price' => $item['unit_price'],
                     'subtotal' => $item['subtotal'],
                     'total' => $item['total'],
-                    'preparation_status' => $item['preparation_status'],
+                    'preparation_status' => $itemStatus,
                 ]);
             }
 
             // 5. Decrementar estoque
             $this->decrementStock($preparedItems);
-
-            Log::info('Pedido criado para visitante', [
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'guest_name' => $guestName,
-                'total' => $total,
-                'origin' => $origin,
-            ]);
 
             return $order->load('items.product');
         });

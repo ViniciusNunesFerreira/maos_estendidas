@@ -94,20 +94,32 @@ class OrderController extends Controller
                 userId: auth()->id()
             );
 
-            if ($dto->customerType === 'filho') {
+
+            if ($dto->customerType === 'filho'  && $dto->payment_method === 'carteira') {
                 // Buscamos apenas o modelo simples, o lock acontece dentro do Service
                 $filho = Filho::findOrFail($dto->filhoId);
                 $order = $this->orderService->createOrderForFilho($filho, $dto);
-            } else {
-                // Lógica para Guest (Visitante)
-                $order = $this->orderService->createOrderForGuest(
-                    items: $request->input('items'),
-                    guestName: $dto->guestName,
-                    guestDocument: $dto->guestDocument,
-                    guestPhone: $dto->guestPhone,
-                    origin: $dto->origin,
-                    createdByUserId: auth()->id()
-                );
+            }else{
+                $order = $this->orderService->createOrderForGuest($dto);
+            }
+
+                // === IMPLEMENTAÇÃO DO FLUXO DE CAIXA ===
+            $cashSession = \App\Models\CashSession::where('user_id', auth()->id())
+                ->where('status', 'open')
+                ->first();
+
+            if ($cashSession) {
+                $method = $dto->customerType === 'filho' && $order->payment_method_chosen === 'carteira' ? 'credito_interno' : $dto->payment_method;
+                
+                \App\Models\CashMovement::create([
+                    'cash_session_id' => $cashSession->id,
+                    'order_id' => $order->id,
+                    'user_id' => auth()->id(),
+                    'type' => 'sale',
+                    'amount' => $order->total, 
+                    'payment_method' => $method, 
+                    'description' => "Venda #{$order->order_number}" . ($dto->customerType === 'filho' ? ' (Filho)' : '')
+                ]);
             }
 
             return response()->json([

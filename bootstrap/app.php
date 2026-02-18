@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
             'verify.mercadopago.signature' => \App\Http\Middleware\VerifyMercadoPagoSignature::class,
             'check.store' => \App\Http\Middleware\CheckStoreStatus::class,
+            'check.cash.session' => \App\Http\Middleware\EnsureCashSessionIsOpen::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

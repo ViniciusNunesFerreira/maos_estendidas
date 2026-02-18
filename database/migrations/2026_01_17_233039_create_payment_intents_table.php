@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('mp_payment_intent_id')->nullable()->unique(); // ID do payment intent (Point)
             
             // Tipo de integração
-            $table->enum('integration_type', ['checkout', 'point_tef']); // checkout ou tef
+            $table->enum('integration_type', ['checkout', 'point_tef', 'manual_pos']); // checkout - tef ou manual_pos
             $table->string('payment_method'); // pix, credit_card, debit_card
             
             // Valores

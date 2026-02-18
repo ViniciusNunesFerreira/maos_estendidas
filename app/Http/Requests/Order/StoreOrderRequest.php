@@ -23,7 +23,6 @@ class StoreOrderRequest extends FormRequest
         
         // PDV: usuário deve ter permissão
         if ($this->isFromPDV()) {
-            \Log::info('veio do pdv');
             return auth()->check() && auth()->user()->can('orders.create');
         }
         
@@ -44,12 +43,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.subtotal' => ['required'],
             'created_by_user_id' => 'nullable|uuid',
             'subtotal' => ['required'],
-            'total' => ['required']
-            
-            // Observações gerais
-           // 'notes' => ['nullable', 'string', 'max:1000'],
-           // 'kitchen_notes' => ['nullable', 'string', 'max:500'],
-            
+            'total' => ['required']  
            
         ];
 
@@ -91,20 +85,14 @@ class StoreOrderRequest extends FormRequest
                 // Device ID (PDV)
                 'device_id' => ['nullable', 'string', 'max:100'],
 
-                'payment_method_chosen' => 'required|string',
-                
-                // Pagamento imediato para visitantes
-               /* 'payment_method_chosen' => [
-                    Rule::requiredIf($this->customer_type === 'guest'),
-                    'nullable',
-                    Rule::in(['cash', 'debit', 'credit', 'pix'])
+                          
+               'payment_method_chosen' => [
+                    'required',
+                    $this->customer_type === 'filho' 
+                        ? Rule::in(['carteira']) 
+                        : Rule::in(['pix', 'credito', 'debito', 'dinheiro'])
                 ],
-                'payment_method_chosen' => [
-                    Rule::requiredIf($this->customer_type === 'guest'),
-                    'nullable',
-                    'numeric',
-                    'min:0'
-                ],*/
+
             ]);
         }
 
@@ -144,8 +132,8 @@ class StoreOrderRequest extends FormRequest
 
             'discount_reason.required' => 'Motivo do desconto é obrigatório',
             
-           /* 'payment_method.required' => 'Forma de pagamento é obrigatória para visitantes',
-            'payment_amount.required' => 'Valor do pagamento é obrigatório',*/
+            'payment_method.required' => 'Forma de pagamento é invalida ',
+            /*'payment_amount.required' => 'Valor do pagamento é obrigatório',*/
             
             
         ];
@@ -182,7 +170,7 @@ class StoreOrderRequest extends FormRequest
         $validator->after(function ($validator) {
             
             // Validação de Filho (App ou PDV com filho)
-            if ($this->customer_type === 'filho' && $this->filho_id) {
+            if ($this->customer_type === 'filho' && $this->filho_id && $this->payment_method_chosen === 'carteira') {
                 $filho = \App\Models\Filho::find($this->filho_id);
                 
                 if (!$filho) {
@@ -225,26 +213,7 @@ class StoreOrderRequest extends FormRequest
                 }
             }
             
-            // Validação de Visitante (apenas PDV)
-            if ($this->isFromPDV() && $this->customer_type === 'guest') {
-                // Calcular total do pedido
-                $total = collect($this->items)->sum(function ($item) {
-                    $qty = $item['quantity'] ?? 0;
-                    $price = $item['unit_price'] ?? 0;
-                    $disc = $item['discount'] ?? 0;
-                    return ($qty * $price) - $disc;
-                });
-                
-                $total -= ($this->discount ?? 0);
-                
-                // Validar pagamento
-                if (($this->payment_amount ?? 0) < $total) {
-                    $validator->errors()->add(
-                        'payment_amount',
-                        'Valor do pagamento é menor que o total do pedido'
-                    );
-                }
-            }
+           
         });
     }
 

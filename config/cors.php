@@ -21,7 +21,8 @@ return [
         'broadcasting/auth', 
         'sanctum/csrf-cookie',
         'login',
-        'logout'
+        'logout',
+        'webhooks/*'
     ],
 
     'allowed_methods' => ['*'],

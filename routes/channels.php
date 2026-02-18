@@ -100,6 +100,11 @@ Broadcast::channel('invoices.{filhoId}', function ($user, $filhoId) {
 
 
 Broadcast::channel('payment.{paymentIntentId}', function ($user, $paymentIntentId) {
+
+    if ($user->hasRole(['admin', 'manager', 'operator', 'pdv'])) {
+        return true;
+    }
+
     $intent = PaymentIntent::find($paymentIntentId);
 
     if (!$intent) return false;
