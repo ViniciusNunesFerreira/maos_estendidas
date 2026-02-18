@@ -7,7 +7,7 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\WelcomeController;
 use App\Notifications\SendMessageWhatsApp;
- use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 
 use App\Models\Filho;
 
@@ -29,12 +29,25 @@ use App\Models\Filho;
 Route::get('/', [WelcomeController::class, 'index'])->name('home');
 
 Route::get('/pdv/updates', function(){
-   
+    echo "<br>";
+    echo "Arquivos do PDV para atualização:\n". "<br>"; 
+    echo "<hr>";
+
     // Listar arquivos na raiz do disco 'local'
-    $files = Storage::files( public_path('pdv-install') );
+    $files = File::files(public_path('pdv-install'));
+
+  
+
 
     foreach ($files as $file) {
-        echo $file;
+       $last_changed = date('d/m/Y H:i:s', $file->getCTime()); 
+
+        echo("========================================= <br>");
+        echo "<strong>".$file->getFilename(). "</strong> | Criado em:". $last_changed ."<br>";
+       
+        // Nome do arquivo
+        echo "<a href='".url('pdv-install/'.$file->getFilename())."'> Download : ". $file->getFilename()." </a> <br>"; // Caminho completo
+        echo("========================================= <br>");
     }
 
 });
