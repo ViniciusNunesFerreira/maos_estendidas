@@ -31,15 +31,12 @@ Route::get('/', [WelcomeController::class, 'index'])->name('home');
 Route::get('/pdv/updates', function(){
    
     // Listar arquivos na raiz do disco 'local'
-    $files = Storage::files('pdv-install');
-
-    // Listar arquivos recursivamente (incluindo subpastas)
-    $allFiles = Storage::allFiles('pdv-install');
+    $files = Storage::files( public_path('pdv-install') );
 
     foreach ($files as $file) {
-        echo $file; // Exibe o caminho relativo
+        echo $file;
     }
-    
+
 });
 
 
