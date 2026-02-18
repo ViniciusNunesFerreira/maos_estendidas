@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\ForgotPasswordController;
 use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\WelcomeController;
 use App\Notifications\SendMessageWhatsApp;
+ use Illuminate\Support\Facades\Storage;
 
 use App\Models\Filho;
 
@@ -26,6 +27,20 @@ use App\Models\Filho;
 // =====================================================
 
 Route::get('/', [WelcomeController::class, 'index'])->name('home');
+
+Route::get('/pdv/updates', function(){
+   
+    // Listar arquivos na raiz do disco 'local'
+    $files = Storage::files('pdv-install');
+
+    // Listar arquivos recursivamente (incluindo subpastas)
+    $allFiles = Storage::allFiles('pdv-install');
+
+    foreach ($files as $file) {
+        echo $file; // Exibe o caminho relativo
+    }
+    
+});
 
 
 // =====================================================
