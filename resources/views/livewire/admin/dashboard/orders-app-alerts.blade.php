@@ -1,14 +1,18 @@
 <div wire:poll.10s>
     <div class="flex space-x-4 items-center mb-4">
         <h2 class="text-lg font-semibold">Monitor de Pedidos App</h2>
-        <span class="relative flex h-4 w-4">
+        <span class="relative flex h-3 w-3">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
         </span>
     </div>
 
     @if($orders->isEmpty())
-        <p class="text-gray-500 italic">Nenhum pedido pendente no momento...</p>
+    
+        <div class="p-4 relative border rounded-lg transition-all duration-500 bg-white shadow-sm w-full"> 
+            <p class="text-gray-500 italic mb-4">Nenhum pedido pendente no momento...</p>
+        </div>
+       
     @else
         <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             @foreach($orders as $order)
