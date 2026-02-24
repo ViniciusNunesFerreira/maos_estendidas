@@ -231,6 +231,8 @@ class ExternalPaymentService
                 'order_id' => $order->id,
                 'error' => $e->getMessage(),
             ]);
+
+            throw new PaymentException("Erro no processamento do cartão: " . $e->getMessage(), 400, null, 'CREATE_CARD_PAYMENT_FAILED');
             
         }
     }
@@ -284,6 +286,7 @@ class ExternalPaymentService
                 'error' => $e->getMessage(),
             ]);
             
+            throw new PaymentException("Erro no processamento do cartão: " . $e->getMessage(), 400, null, 'CREATE_CARD_PAYMENT_FAILED');
         }
     }
     
@@ -394,7 +397,7 @@ class ExternalPaymentService
             $is_invoiced = match($order->origin){
                 'app' => true,
                 default => false
-            }
+            };
             
             $order->update([
                 'payment_intent_id' => $payment->mp_payment_intent_id,
