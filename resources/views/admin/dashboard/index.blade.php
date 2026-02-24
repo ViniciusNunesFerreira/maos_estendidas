@@ -7,10 +7,10 @@
             <livewire:admin.dashboard.active-filhos-card />
             <livewire:admin.dashboard.overdue-invoices-card />
         </div>
-        
-        <!-- Gráfico de Vendas -->
-        <livewire:admin.dashboard.sales-chart />
-        
+
+        <!-- Alertas de Vendas do App -->
+        <livewire:admin.dashboard.orders-app-alerts />
+
         <!-- Grid de Informações -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Top 10 Produtos -->

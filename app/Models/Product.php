@@ -70,7 +70,7 @@ class Product extends Model
         'calories' => 'integer',
     ];
 
-    protected $appends = ['is_low_stock'];
+    protected $appends = ['is_low_stock', 'available_stock'];
 
     // =========================================================
     // RELACIONAMENTOS
@@ -116,6 +116,19 @@ class Product extends Model
         }
 
         return $this->stock_quantity <= $this->min_stock_alert;
+    }
+
+    public function getAvailableStockAttribute(): int
+    {
+        // Buscamos a soma de reservas ativas de pedidos não finalizados
+        $reserved = StockMovement::where('product_id', $this->id)
+            ->where('type', 'reserve')
+            ->sum('quantity');
+
+        \Log::info('Qty. Reservada'.$reserved);
+        \Log::info('Qty. Stock'.$this->stock_quantity);
+
+        return max(0, $this->stock_quantity - $reserved);
     }
 
     protected function imageUrl(): Attribute

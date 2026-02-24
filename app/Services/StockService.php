@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\Order;
 use App\Models\StockMovement;
 use Illuminate\Support\Facades\DB;
 
@@ -23,11 +24,6 @@ class StockService
             $product->skipStockObserver();
             $product->incrementStock($quantity);
             $product->refresh();
-
-            \Log::info('id do user que veio: '.$userId);
-            \Log::info('id do user auth'. auth()->id());
-
-            
 
             return StockMovement::create([
                 'product_id' => $product->id,
@@ -63,7 +59,7 @@ class StockService
 
             return StockMovement::create([
                 'product_id' => $product->id,
-                'type' => $type ?? 'adjustment',
+                'type' => $type ?? StockMovement::TYPE_ADJUSTMENT,
                 'quantity' => $quantity,
                 'quantity_before' => $stockBefore,
                 'quantity_after' => $product->stock_quantity,
@@ -74,90 +70,11 @@ class StockService
         });
     }
 
-    /**
-     * Incrementar estoque (usado em cancelamentos)
-     */
-    public function increment(
-        Product $product,
-        int $quantity,
-        string $reason,
-        ?string $orderId = null
-    ): StockMovement {
-        return DB::transaction(function () use ($product, $quantity, $reason, $orderId) {
-            $stockBefore = $product->stock_quantity;
-            
-            $product->incrementStock($quantity);
-            $product->refresh();
+    
 
-            return StockMovement::create([
-                'product_id' => $product->id,
-                'type' => StockMovement::TYPE_ADJUSTMENT,
-                'quantity' => $quantity,
-                'stock_before' => $stockBefore,
-                'stock_after' => $product->stock_quantity,
-                'reason' => $reason,
-                'order_id' => $orderId,
-                'user_id' => auth()->id(),
-                'reference' => 'CANCEL',
-            ]);
-        });
-    }
+    
 
-    /**
-     * Decrementar estoque (usado em vendas)
-     */
-    public function decrement(
-        Product $product,
-        int $quantity,
-        string $reason,
-        ?string $orderId = null
-    ): StockMovement {
-        return DB::transaction(function () use ($product, $quantity, $reason, $orderId) {
-            $stockBefore = $product->stock_quantity;
-            
-            $product->decrementStock($quantity);
-            $product->refresh();
 
-            return StockMovement::create([
-                'product_id' => $product->id,
-                'type' => 'sale',
-                'quantity' => $quantity,
-                'stock_before' => $stockBefore,
-                'stock_after' => $product->stock_quantity,
-                'reason' => $reason,
-                'order_id' => $orderId,
-                'user_id' => auth()->id(),
-                'reference' => 'SALE',
-            ]);
-        });
-    }
-
-    /**
-     * Ajustar estoque (inventário)
-     */
-    public function adjust(
-        Product $product,
-        int $newQuantity,
-        string $reason,
-        ?int $userId = null
-    ): StockMovement {
-        return DB::transaction(function () use ($product, $newQuantity, $reason, $userId) {
-            $stockBefore = $product->stock;
-            $difference = $newQuantity - $stockBefore;
-            
-            $product->update(['stock' => $newQuantity]);
-
-            return StockMovement::create([
-                'product_id' => $product->id,
-                'type' => 'adjustment',
-                'quantity' => abs($difference),
-                'stock_before' => $stockBefore,
-                'stock_after' => $newQuantity,
-                'reason' => "[Inventário] {$reason}",
-                'created_by_user_id' => $userId ?? auth()->id(),
-            ]);
-        });
-    }
 
     /**
      * Verificar disponibilidade de estoque
@@ -227,6 +144,8 @@ class StockService
             ->value('total') ?? 0;
     }
 
+
+
     /**
      * Obter resumo de estoque
      */
@@ -243,4 +162,134 @@ class StockService
             'total_value' => $this->calculateTotalStockValue(),
         ];
     }
+
+    /**
+     * Reserva o estoque: Apenas "bloqueia" o saldo para venda
+     */
+    public function reserveStock(Order $order)
+    {
+       
+        DB::transaction(function () use ($order) {
+
+            $order->load('items');
+
+            if ($order->items->isEmpty()) {
+                return;
+            }
+
+            foreach ($order->items as $item) {
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+
+                    if ($product->available_stock < $item->quantity) {
+                        throw new \Exception("Estoque insuficiente para o produto: {$product->name}");
+                    }
+
+                        StockMovement::create([
+                            'product_id' => $item->product_id,
+                            'order_id' => $order->id,
+                            'user_id' => $order->user_id ?? auth()->id(),
+                            'type' => StockMovement::TYPE_RESERVE,
+                            'quantity' => $item->quantity,
+                            'quantity_before' => $product->stock_quantity,
+                            'quantity_after' => $product->stock_quantity, 
+                            'reason' => "Reserva de pedido #{$order->order_number}",
+                            'reference' => 'TYPE_RESERVE',
+                        ]);
+
+            }
+        });
+    }
+
+    /**
+     * Efetiva a venda: Transforma a reserva em saída real (decrementa stock_quantity)
+     */
+    public function confirmStockExit(Order $order)
+    {
+        DB::transaction(function () use ($order) {
+            foreach ($order->items as $item) {
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+
+                // Remove a reserva prévia
+                StockMovement::where('order_id', $order->id)
+                    ->where('product_id', $item->product_id)
+                    ->where('type', 'reserve')
+                    ->delete();
+
+                $stockBefore = $product->stock_quantity;
+                $product->decrement('stock_quantity', $item->quantity);
+
+                StockMovement::create([
+                    'product_id' => $item->product_id,
+                    'order_id' => $order->id,
+                    'user_id' => $order->user_id ?? auth()->id(),
+                    'type' => StockMovement::TYPE_SALE,
+                    'quantity' => $item->quantity,
+                    'quantity_before' => $stockBefore,
+                    'quantity_after' => $product->stock_quantity,
+                    'reason' => "Venda confirmada #{$order->order_number}",
+                ]);
+            }
+        });
+    }
+
+    /**
+     * RESTAURAÇÃO: Para cancelamentos ou expiração
+     */
+    public function rollbackReservation(Order $order)
+    {
+        // Apenas deleta as reservas, o available_stock volta ao normal automaticamente
+        StockMovement::where('order_id', $order->id)
+            ->where('type', 'reserve')
+            ->delete();
+    }
+
+    /**
+     * DEVOLUÇÃO: Retorna itens de um pedido cancelado ao estoque físico.
+     * Usado quando o pedido já havia saído do status 'pending'.
+     */
+    public function returnToPhysicalStock(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            // Carregamos os itens do pedido
+            foreach ($order->items as $item) {
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
+
+                // Se o produto não controla estoque, pulamos
+                if (!$product->track_stock) continue;
+
+                $stockBefore = $product->stock_quantity;
+                
+                // Incrementa o estoque físico
+               // $product->increment('stock_quantity', $item->quantity);
+
+                if ($product->requires_preparation) {
+                    // Se for um item de cozinha já preparado, talvez não deva voltar ao estoque
+                    // Registramos apenas como 'loss' (perda) em vez de 'return'
+                    $type = StockMovement::TYPE_LOSS; 
+                } else {
+                    $type = StockMovement::TYPE_RETURN;
+                    $product->increment('stock_quantity', $item->quantity);
+                }
+
+                // Registra a movimentação de devolução/estorno
+                StockMovement::create([
+                    'product_id' => $item->product_id,
+                    'order_id'   => $order->id,
+                    'user_id'    => auth()->id() ?? $order->user_id,
+                    'type'       => $type,
+                    'quantity'   => $item->quantity,
+                    'quantity_before' => $stockBefore,
+                    'quantity_after'  => $product->stock_quantity,
+                    'reason'     => "Estorno de estoque: Pedido #{$order->order_number} cancelado.",
+                    'metadata'   => [
+                        'previous_status' => $order->getOriginal('status'),
+                        'cancelled_at'    => now()->toDateTimeString()
+                    ]
+                ]);
+            }
+        });
+    }
+
+
+
 }

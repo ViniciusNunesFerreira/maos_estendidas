@@ -21,6 +21,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
+
+Schedule::command('orders:expire-reservations')->everyMinute();
+
 // =====================================================
 // AGENDAMENTOS (CRON JOBS)
 // =====================================================
@@ -73,29 +76,6 @@ Schedule::call(function () {
   ->withoutOverlapping()
   ->onOneServer();
 
-Schedule::call(function () {
-    // Backup automático do banco de dados
-    Artisan::call('backup:run', ['--only-db' => true]);
-})->dailyAt('02:00') // Diariamente às 02:00
-  ->name('database-backup')
-  ->withoutOverlapping()
-  ->onOneServer();
-
-Schedule::call(function () {
-    // Backup completo (banco + arquivos)
-    Artisan::call('backup:run');
-})->weeklyOn(1, '03:00') // Toda segunda às 03:00
-  ->name('full-backup')
-  ->withoutOverlapping()
-  ->onOneServer();
-
-Schedule::call(function () {
-    // Limpar backups antigos (manter últimos 30 dias)
-    Artisan::call('backup:clean');
-})->dailyAt('04:00') // Diariamente às 04:00
-  ->name('cleanup-old-backups')
-  ->withoutOverlapping()
-  ->onOneServer();
 
 Schedule::call(function () {
     // Limpar logs antigos (manter últimos 30 dias)
@@ -113,38 +93,6 @@ Schedule::call(function () {
   ->withoutOverlapping()
   ->onOneServer();
 
-/*
-// Processar fila de jobs
-Schedule::call(function () {
-    // Processar fila de jobs
-    // Nota: Em produção, use supervisor para queue:work
-    // Este é apenas um fallback
-    Artisan::call('queue:work', [
-        '--stop-when-empty' => true,
-        '--max-time' => 300, // 5 minutos
-    ]);
-})->everyMinute() // A cada minuto
-  ->name('process-queue')
-  ->withoutOverlapping()
-  ->onOneServer()
-  ->runInBackground();
-  */
-
-Schedule::call(function () {
-    // Gerar relatórios automáticos mensais
-    Artisan::call('casalar:generate-monthly-reports');
-})->monthlyOn(1, '07:00') // Todo dia 1 às 07:00
-  ->name('generate-monthly-reports')
-  ->withoutOverlapping()
-  ->onOneServer();
-
-Schedule::call(function () {
-    // Verificar e renovar tokens SAT que estão expirando
-    Artisan::call('casalar:check-sat-tokens');
-})->dailyAt('05:00') // Diariamente às 05:00
-  ->name('check-sat-tokens')
-  ->withoutOverlapping()
-  ->onOneServer();
 
 // =====================================================
 // COMANDOS DISPONÍVEIS

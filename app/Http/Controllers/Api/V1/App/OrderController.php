@@ -12,6 +12,7 @@ use App\Models\Order;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\DTOs\CreateOrderDTO;
 
 class OrderController extends Controller
 {
@@ -36,11 +37,26 @@ class OrderController extends Controller
             ], 403);
         }
 
-        $orders = Order::where('filho_id', $filho->id)
-            ->eligibleForInvoicing()
-            ->with(['items.product', 'payment'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $query = Order::where('filho_id', $filho->id)->with(['items.product', 'payment']);
+        
+
+        $filter = $request->input('filter', 'active');
+
+        if($filter === 'active'){
+            $query->where('is_invoiced', false)
+                    ->where('customer_type', 'filho')
+                    ->whereIn('status', ['delivered', 'ready']);
+        }else {
+            // Aba "Histórico" (all): Filtra por mês e ano específicos (Padrão: Mês/Ano atual)
+            $month = $request->input('month', now()->month);
+            $year = $request->input('year', now()->year);
+
+            $query->whereMonth('created_at', $month)
+                  ->whereYear('created_at', $year);
+        }
+
+        // Ordena do mais recente para o mais antigo
+        $orders = $query->orderBy('created_at', 'desc')->paginate(5);
 
         return response()->json([
             'success' => true,
@@ -87,7 +103,9 @@ class OrderController extends Controller
      */
     public function store(StoreOrderRequest $request): JsonResponse
     {
-        try {
+       
+
+       try {
             $user = $request->user();
             $filho = $user->filho;
 
@@ -107,13 +125,17 @@ class OrderController extends Controller
                 ], 403);
             }
 
+            
+            
+            $orderDTO = CreateOrderDTO::fromRequest(
+                data: $request->validated(),
+                userId: $user->id
+            );
+
             // Criar pedido
             $order = $this->orderService->createOrderForFilho(
                 filho: $filho,
-                items: $request->validated()['items'],
-                origin: $request->validated()['origin'] ?? 'app',
-                notes: $request->validated()['notes'] ?? null,
-                createdById: $user->id,
+                data: $orderDTO,
             );
 
             // Obter métodos de pagamento disponíveis
@@ -323,64 +345,7 @@ class OrderController extends Controller
         }
     }
 
-    /**
-     * Rastrear pedido
-     * GET /api/v1/app/orders/{order}/track
-     */
-    public function track(Request $request, Order $order): JsonResponse
-    {
-        $user = $request->user();
-        $filho = $user->filho;
-
-        // Verificar ownership
-        if ($order->filho_id !== $filho->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Pedido não encontrado',
-            ], 404);
-        }
-
-        $statusHistory = [
-            [
-                'status' => 'pending',
-                'label' => 'Pedido Recebido',
-                'completed' => true,
-                'time' => $order->created_at->format('H:i'),
-            ],
-            [
-                'status' => 'preparing',
-                'label' => 'Em Preparação',
-                'completed' => $order->preparing_at !== null,
-                'time' => $order->preparing_at?->format('H:i'),
-            ],
-            [
-                'status' => 'ready',
-                'label' => 'Pronto para Retirada',
-                'completed' => $order->ready_at !== null,
-                'time' => $order->ready_at?->format('H:i'),
-            ],
-            [
-                'status' => 'delivered',
-                'label' => 'Entregue',
-                'completed' => $order->delivered_at !== null,
-                'time' => $order->delivered_at?->format('H:i'),
-            ],
-        ];
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'order_number' => $order->order_number,
-                'current_status' => $order->status,
-                'current_status_label' => $this->getStatusLabel($order->status),
-                'is_cancelled' => $order->status === 'cancelled',
-                'can_cancel' => in_array($order->status, ['pending']),
-                'status_history' => $statusHistory,
-                'estimated_time' => $this->getEstimatedTime($order),
-            ],
-        ]);
-    }
-
+   
     /**
      * Pedidos ativos
      * GET /api/v1/app/orders/active

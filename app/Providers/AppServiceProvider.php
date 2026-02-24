@@ -81,7 +81,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
        // Invoice::observe(InvoiceObserver::class);
-       // Order::observe(OrderObserver::class);
+        Order::observe(OrderObserver::class);
         Product::observe(ProductObserver::class);
         Subscription::observe(SubscriptionObserver::class);
     }

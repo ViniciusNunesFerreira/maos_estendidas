@@ -12,13 +12,14 @@ use App\Exceptions\PaymentException;
 use App\Exceptions\BusinessRuleException;
 use Carbon\Carbon;
 use Exception;
+use App\Notifications\SendMessageWhatsApp;
 
 /**
  * Serviço de Pagamentos Externos (PIX e Cartão)
  * 
  * RESPONSABILIDADE:
  * - Criar Payment Intents para PIX e Cartão
- * - Integrar com CheckoutTransparenteService (já existente)
+ * - Integrar com CheckoutTransparenteService
  * - Processar webhooks do Mercado Pago
  * - Confirmar pagamentos e atualizar status
  * 
@@ -199,6 +200,8 @@ class ExternalPaymentService
                 $paymentMethodId,
                 1
             );
+
+            \Log::debug($mpResult);
 
             // VERIFICAÇÃO IMEDIATA
             if (($mpResult['status'] ?? '') === 'approved') {
@@ -383,11 +386,47 @@ class ExternalPaymentService
      */
     private function finalizeOrder(Order $order, Payment $payment): void
     {
-            $order->markAsPaid();
+            $status = match($order->origin) {
+                'pdv' => 'delivered',
+                default => 'ready',
+            };
+
+            $is_invoiced = match($order->origin){
+                'app' => true,
+                default => false
+            }
+            
             $order->update([
                 'payment_intent_id' => $payment->mp_payment_intent_id,
-                'awaiting_external_payment' => false
+                'awaiting_external_payment' => false,
+                'status' => $status,
+                'paid_at' => now(),
+                'is_invoiced' => $is_invoiced
             ]);
+
+
+            if($order->origin === 'app'){
+                try{
+
+                    $filho = $order->filho;
+
+                    $delaySeconds = now()->addSeconds(rand(5, 60));
+
+                    $saudacoes = ['Olá! ', 'Oi ', 'Tudo bem? ', 'Oi amor! '];
+                    $saudacao = $saudacoes[array_rand($saudacoes)];
+
+                    $finais = [' vamos ver estoque e assim que estiver tudo pronto avisamos.', ' já estamos providenciando para reservar, tá. Logo te avisamos.', ' está tudo ok! Agora é só aguardar para retirar na lojinha'];
+                    $final = $finais[array_rand($finais)];
+
+                    $msg = "{$saudacao} Recebemos seu pedido, {$final} .";
+                    
+                    $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
+
+                }catch(\Exception $e){
+                    \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());
+                }
+
+            }
             
     }
 

@@ -225,13 +225,18 @@ class CheckoutTransparenteService
                         ]
                     );
 
+                    $status = match($order->origin) {
+                        'pdv' => 'delivered',
+                        default => 'ready',
+                    };
+
                     // Atualizar order
                     $isApproved = $mpResponse['status'] === 'approved';
                     $order->update([
                         'payment_intent_id' => $intent->id,
                         'awaiting_external_payment' => $isApproved,
                         'payment_method_chosen' => 'mercadopago_card',
-                        'status' => $isApproved ? 'paid' : 'pending',
+                        'status' => $isApproved ? $status : 'pending',
                     ]);
 
                     

@@ -13,7 +13,7 @@ class OrdersList extends Component
     public string $search = '';
     public string $statusFilter = '';
     public string $originFilter = '';
-    public string $periodFilter = 'today';
+    public string $periodFilter = 'all';
     public string $customerType = '';
 
     protected $queryString = ['search', 'statusFilter', 'originFilter', 'periodFilter', 'customerType'];
@@ -55,8 +55,8 @@ class OrdersList extends Component
         $stats = [
             'total' => (clone $query)->count(),
             'total_revenue' => (clone $query)->where('status', '!=', 'cancelled')->sum('total'),
-            'pending' => Order::whereIn('status', ['pending', 'confirmed', 'preparing'])->count(),
-            'completed_today' => Order::whereDate('created_at', today())->where('status', 'completed')->count(),
+            'pending' => Order::whereIn('status', ['pending', 'ready'])->count(),
+            'completed_today' => Order::whereDate('created_at', today())->where('status', ['completed', 'paid', 'delivered'])->count(),
         ];
 
         return view('livewire.admin.orders.orders-list', [

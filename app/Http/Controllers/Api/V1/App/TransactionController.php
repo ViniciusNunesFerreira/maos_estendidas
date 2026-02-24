@@ -26,20 +26,7 @@ class TransactionController extends Controller
         protected CreditConsumptionService $creditService
     ) {}
     
-    /**
-     * Consumir limite de crédito (Compra com Saldo)
-     * 
-     * POST /api/v1/app/transactions/consume-limit
-     * 
-     * Body:
-     * {
-     *   "order_id": "uuid"
-     * }
-     * 
-     * @param Request $request
-     * @return JsonResponse
-     */
-    public function consumeLimit(Request $request): JsonResponse
+      public function consumeLimit(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'order_id' => 'required|uuid|exists:orders,id',
@@ -77,7 +64,7 @@ class TransactionController extends Controller
         } catch (\App\Exceptions\InsufficientCreditException $e) {
             return $e->render();
         } catch (\App\Exceptions\PaymentException $e) {
-            return $e->render();
+            return $e->render($request);
         } catch (\App\Exceptions\FilhoBlockedException $e) {
             return $e->render();
         } catch (\Exception $e) {

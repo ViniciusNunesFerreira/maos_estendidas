@@ -19,7 +19,7 @@ class CreateOrderDTO
         public readonly string $customerType,  // 'filho' | 'guest'
         public readonly ?string $filhoId,      // UUID do filho (obrigatório se customerType = filho)
 
-        public readonly string $payment_method,
+        public readonly ?string $payment_method,
         
         // Dados do Visitante (obrigatório se customerType = guest)
         public readonly ?string $guestName,
@@ -54,11 +54,12 @@ class CreateOrderDTO
      */
     public static function fromRequest(array $data, string $userId): self
     {
+        
         // Determinar customer_type
-        $customerType = $data['customer_type'] ?? 'filho';
+        $customerType = $data['customer_type'] ?? 'guest';
         
         // Se tem filho_id, é sempre 'filho'
-        if (!empty($data['filho_id'])) {
+        if (!empty($data['filho_id']) || $data['origin'] == 'app') {
             $customerType = 'filho';
         }
         
@@ -85,10 +86,8 @@ class CreateOrderDTO
             subtotal: $subtotal,
             discount: $discount,
             total: $total,
-            payment_method: $data['payment_method_chosen'],
-           // notes: $data['notes'] ?? null,
-           // kitchenNotes: $data['kitchen_notes'] ?? null,
-           // metadata: $data['metadata'] ?? [],
+            payment_method: $data['payment_method_chosen'] ?? null,
+
         );
     }
 

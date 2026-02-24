@@ -53,6 +53,7 @@ class StockMovement extends Model
     public const TYPE_RETURN = 'return';
     public const TYPE_LOSS = 'loss';
     public const TYPE_TRANSFER = 'transfer';
+    public const TYPE_RESERVE = 'reserve';
 
     // =========================================================
     // RELACIONAMENTOS

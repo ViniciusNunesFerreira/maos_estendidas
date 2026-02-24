@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Exception;
 use App\DTOs\CreateOrderDTO;
+use App\Services\StockService;
+
 
 /**
  * Order Service - Gestão Unificada de Pedidos
@@ -69,6 +71,7 @@ class OrderService
             $orderStatus = $isDeliveredImmediately ? 'delivered' : 'pending';
             $itemStatus = $isDeliveredImmediately ? 'delivered' : 'pending';
 
+
             // 5. Criar Pedido
             $order = Order::create([
                 'order_number' => $this->generateOrderNumber($data->origin),
@@ -78,7 +81,7 @@ class OrderService
                 'customer_name' => $filho->user->name ?? 'Filho',
                 'customer_cpf' => $filho->cpf,
                 'origin' => $data->origin,
-                'status' => $orderStatus,
+                'status' => 'pending',
                 'payment_method_chosen' => $data->payment_method,
                 'subtotal' => $subtotal,
                 'discount' => $data->discount ?? 0,
@@ -101,10 +104,16 @@ class OrderService
                 ]);
             }
 
-            // 7. Decrementar Estoque
-            $this->decrementStock($preparedItems);
+            $order->load(['items.product', 'filho.user']);
+            // Reserva de Stock
+            app(StockService::class)->reserveStock($order);
 
-            return $order->load(['items.product', 'filho.user']);
+            if( $isDeliveredImmediately ){
+                $order->update(['status' => $orderStatus]);
+            }
+            
+
+            return $order;
         });
     }
 
@@ -135,7 +144,7 @@ class OrderService
                 'customer_name' => $data->guestName,
                 'guest_name' => $data->guestName,
                 'origin' => $data->origin,
-                'status' => $orderStatus,
+                'status' => 'pending',
                 'is_invoiced' => $isDeliveredImmediately ? true : false,
                 'invoiced_at' => $isDeliveredImmediately ? now() : null,
                 'payment_method_chosen' => $data->payment_method,
@@ -160,10 +169,16 @@ class OrderService
                 ]);
             }
 
-            // 5. Decrementar estoque
-            $this->decrementStock($preparedItems);
+            $order->load('items');
 
-            return $order->load('items.product');
+            // Reserva de Stock
+            app(StockService::class)->reserveStock($order);
+
+            if( $isDeliveredImmediately ){
+                $order->update(['status' => $orderStatus]);
+            }
+
+            return $order;
         });
     }
 
@@ -247,7 +262,7 @@ class OrderService
                 ];
             })->toArray();
             
-            $this->incrementStock($items);
+         //   $this->incrementStock($items);
 
             // Atualizar status
             $order->update([
@@ -376,7 +391,7 @@ class OrderService
     /**
      * Decrementar estoque
      */
-    protected function decrementStock(array $items): void
+ /*   protected function decrementStock(array $items): void
     {
         foreach ($items as $item) {
             $product = Product::find($item['product_id']);
@@ -384,12 +399,12 @@ class OrderService
                 $product->decrement('stock_quantity', $item['quantity']);
             }
         }
-    }
+    } */
 
     /**
      * Incrementar estoque (cancelamento)
      */
-    protected function incrementStock(array $items): void
+ /*   protected function incrementStock(array $items): void
     {
         foreach ($items as $item) {
             $product = Product::find($item['product_id']);
@@ -397,7 +412,7 @@ class OrderService
                 $product->increment('stock_quantity', $item['quantity']);
             }
         }
-    }
+    }*/
 
     // =========================================================
     // UTILIDADES

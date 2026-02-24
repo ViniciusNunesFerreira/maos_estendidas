@@ -30,7 +30,7 @@ class OrderDetails extends Component
             'pending' => ['confirmed', 'cancelled'],
             'confirmed' => ['preparing', 'cancelled'],
             'preparing' => ['ready', 'cancelled'],
-            'ready' => ['completed', 'cancelled'],
+            'ready' => ['delivered', 'cancelled'],
         ];
 
         if (!in_array($newStatus, $allowedTransitions[$this->order->status] ?? [])) {
@@ -46,9 +46,9 @@ class OrderDetails extends Component
         $this->order->update(['status' => $newStatus]);
         
         // Emitir evento para KDS
-        event(new \App\Events\OrderStatusChanged($this->order));
+        // event(new \App\Events\OrderStatusChanged($this->order));
         
-        session()->flash('message', 'Status atualizado com sucesso!');
+        session()->flash('message', 'Pedido atualizado com sucesso!');
         $this->order->refresh();
     }
 
@@ -74,7 +74,6 @@ class OrderDetails extends Component
         try {
             $orderService->cancelOrder(
                 order: $this->order,
-                user: auth()->user(),
                 reason: $this->cancelReason
             );
 
@@ -99,8 +98,9 @@ class OrderDetails extends Component
             'confirmed' => ['label' => 'Confirmado', 'color' => 'blue'],
             'delivered' => ['label' => 'Entregue', 'color' => 'green'],
             'preparing' => ['label' => 'Preparando', 'color' => 'indigo'],
-            'ready' => ['label' => 'Pronto', 'color' => 'green'],
-            'completed' => ['label' => 'Entregue', 'color' => 'gray'],
+            'ready' => ['label' => 'Encomendado', 'color' => 'blue'],
+            'completed' => ['label' => 'Entregue', 'color' => 'green'],
+            'paid' => ['label' => 'Pago', 'color' => 'green'],
             'cancelled' => ['label' => 'Cancelado', 'color' => 'red'],
         ];
 
@@ -108,7 +108,7 @@ class OrderDetails extends Component
             'pending' => ['confirmed' => 'Confirmar', 'cancelled' => 'Cancelar'],
             'confirmed' => ['preparing' => 'Iniciar Preparo', 'cancelled' => 'Cancelar'],
             'preparing' => ['ready' => 'Marcar Pronto', 'cancelled' => 'Cancelar'],
-            'ready' => ['completed' => 'Marcar Entregue', 'cancelled' => 'Cancelar'],
+            'ready' => ['delivered' => 'Marcar Entregue', 'cancelled' => 'Cancelar'],
         ];
 
         return view('livewire.admin.orders.order-details', [

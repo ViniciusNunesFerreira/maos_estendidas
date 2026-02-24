@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use App\Exceptions\InsufficientCreditException;
 use App\Exceptions\PaymentException;
 use App\Exceptions\FilhoBlockedException;
+use App\Notifications\SendMessageWhatsApp;
 
 /**
  * Serviço de Consumo de Crédito (Saldo Interno)
@@ -32,17 +33,17 @@ class CreditConsumptionService
         
         if (!$order->filho_id) {
             throw new PaymentException(
-                'Pedido não está vinculado a um filho/aluno.',
-                400,
-                'ORDER_NOT_LINKED_TO_FILHO'
+                message: 'Pedido não está vinculado a um filho/aluno.',
+                code: 400,
+                errorCode: 'ORDER_NOT_LINKED_TO_FILHO'
             );
         }
         
-        if ($order->status === 'paid') {
+        if ($order->paid_at) {
             throw new PaymentException(
-                'Este pedido já foi pago.',
-                400,
-                'ORDER_ALREADY_PAID'
+                message: 'Este pedido já foi pago.',
+                code: 400,
+                errorCode: 'ORDER_ALREADY_PAID'
             );
         }
         
@@ -50,6 +51,7 @@ class CreditConsumptionService
             throw new PaymentException(
                 'Pedido cancelado não pode ser pago.',
                 400,
+                null,
                 'ORDER_CANCELLED'
             );
         }
@@ -64,6 +66,7 @@ class CreditConsumptionService
             throw new PaymentException(
                 'Filho/aluno está inativo. Não é possível realizar compras.',
                 403,
+                null,
                 'FILHO_INACTIVE'
             );
         }
@@ -104,9 +107,10 @@ class CreditConsumptionService
             
             // 2. Marcar Order como paga (operacionalmente)
             $order->update([
-                'status' => 'paid',
+                'status' => 'ready',
                 'paid_at' => now(),
-                'is_invoiced' => false, // 🔴 CRÍTICO: Vai para fatura mensal!
+                'is_invoiced' => false, 
+                'payment_method_chosen' => 'carteira'
             ]);
             
             // 3. Registrar Transaction para auditoria
@@ -123,20 +127,32 @@ class CreditConsumptionService
             ]);
             
             DB::commit();
+
+            if($order->origin === 'app'){
+
+                
+
+                try{
+
+                    $delaySeconds = now()->addSeconds(rand(5, 60));
+
+                    $saudacoes = ['Olá! ', 'Oi ', 'Tudo bem? ', 'Oi amor! '];
+                    $saudacao = $saudacoes[array_rand($saudacoes)];
+
+                    $finais = [' vamos ver estoque e assim que estiver tudo pronto avisamos.', ' já estamos providenciando para reservar, tá. Logo te avisamos.', ' está tudo ok! Agora é só aguardar para retirar na lojinha'];
+                    $final = $finais[array_rand($finais)];
+
+                    $msg = "{$saudacao} Recebemos seu pedido, {$final} .";
+                    
+                    $filho->notify( (new SendMessageWhatsApp($msg))->delay($delaySeconds) );
+
+                }catch(\Exception $e){
+                    \Log::error('Erro ao enviar mensagem whatsapp: '.$e->getMessage());
+                }
+
+            }
             
-            // ========== LOG DE SUCESSO ==========
-            
-            Log::info('Crédito consumido com sucesso', [
-                'filho_id' => $filho->id,
-                'filho_name' => $filho->user->name,
-                'order_id' => $order->id,
-                'order_number' => $order->order_number,
-                'amount' => $order->total,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-                'transaction_id' => $transaction->id,
-            ]);
-            
+           
             // ========== RETORNO PADRONIZADO ==========
             
             return [
@@ -153,17 +169,11 @@ class CreditConsumptionService
             
         } catch (\Exception $e) {
             DB::rollBack();
-            
-            Log::error('Erro ao consumir crédito', [
-                'filho_id' => $filho->id,
-                'order_id' => $order->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            
+                
             throw new PaymentException(
                 'Erro ao processar pagamento com saldo: ' . $e->getMessage(),
                 500,
+                null,
                 'CREDIT_CONSUMPTION_FAILED'
             );
         }

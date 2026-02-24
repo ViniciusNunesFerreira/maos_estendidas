@@ -46,6 +46,7 @@ class OrderResource extends JsonResource
             // Status
             'status' => $this->status,
             'payment_status' => $this->payment_status,
+            'deactive_wallet' => !is_null($this->paid_at) || in_array($this->status, [ 'delivered', 'completed', 'ready', 'paid' ]) || !is_null($this->payment_method_chosen),
             
             // Items
             'items' => $this->when($this->relationLoaded('items'), function() {

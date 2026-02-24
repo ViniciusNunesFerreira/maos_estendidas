@@ -41,26 +41,24 @@ class StoreOrderRequest extends FormRequest
             'items.*.product_id' => ['required', 'uuid', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:99'],
             'items.*.subtotal' => ['required'],
-            'created_by_user_id' => 'nullable|uuid',
-            'subtotal' => ['required'],
-            'total' => ['required']  
+            'created_by_user_id' => ['nullable', 'uuid'],
+            'subtotal' => [Rule::requiredIf($this->isFromPDV())],
+            'total' => [Rule::requiredIf($this->isFromPDV())],  
+            'customer_type' => ['required', Rule::in(['filho', 'guest'])],
+            'filho_id' => [
+                Rule::requiredIf($this->customer_type === 'filho'),
+                'uuid',
+                'exists:filhos,id'
+            ],
            
         ];
+
+         
 
         // Regras específicas do PDV
         if ($this->isFromPDV()) {
             $rules = array_merge($rules, [
-                // Tipo de cliente (PDV permite filho ou visitante)
-                'customer_type' => ['required', Rule::in(['filho', 'guest'])],
-                
-                // Filho (condicional)
-                'filho_id' => [
-                    Rule::requiredIf($this->customer_type === 'filho'),
-                    'nullable',
-                    'uuid',
-                    'exists:filhos,id'
-                ],
-                
+
                 // Visitante (condicional)
                 'guest_name' => [
                     Rule::requiredIf($this->customer_type === 'guest'),
@@ -96,6 +94,7 @@ class StoreOrderRequest extends FormRequest
             ]);
         }
 
+        
         return $rules;
     }
 
@@ -150,6 +149,7 @@ class StoreOrderRequest extends FormRequest
 
         // App: adicionar filho_id automaticamente
         if ($this->isFromApp()) {
+            \Log::info('veio do app');
             $data['filho_id'] = auth()->user()->filho->id;
             $data['customer_type'] = 'filho';
         }
