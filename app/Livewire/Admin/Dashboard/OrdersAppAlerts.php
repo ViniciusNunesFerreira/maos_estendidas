@@ -4,47 +4,36 @@ namespace App\Livewire\Admin\Dashboard;
 
 use Livewire\Component;
 use App\Models\Order;
+use Illuminate\Support\Collection;
 
 class OrdersAppAlerts extends Component
 {
-    public array $orders = [];
-    public int $totalOrdersAlerts = 0;
 
-    protected $listeners = ['refreshDashboard' => '$refresh'];
 
-    public function mount(): void
+    public function getOrdersProperty(): Collection
     {
-        $this->loadOrders();
-    }
-
-    public function loadOrders(): void
-    {
-        $this->orders =  Order::query()
+        return Order::query()
             ->where('origin', 'app')
             ->where('customer_type', 'filho')
             ->where('status', 'ready')
-            ->select('id', 'order_number','customer_name', 'status', 'total', 'payment_method_chosen', 'is_invoiced', 'paid_at')
+            ->select('id', 'order_number', 'customer_name', 'status', 'total', 'payment_method_chosen', 'is_invoiced', 'paid_at', 'created_at')
             ->orderByDesc('created_at')
-            ->limit(10)
-            ->get()
-            ->map(fn($order) => [
-                'id' => $order->id,
-                'order_number' => $order->order_number,
-                'customer_name' => $order->customer_name, 
-                'status' => $order->status, 
-                'total' => $order->total, 
-                'payment_method_chosen' => $order->payment_method_chosen, 
-                'is_invoiced' => $order->is_invoiced, 
-                'paid_at' => $order->paid_at
-            ])
-            ->toArray();
-        
-        $this->totalOrdersAlerts = count($this->orders);
-
+            ->limit(5)
+            ->get();
     }
+
+    public function getTotalOrdersAlertsProperty(): int
+    {
+        return $this->orders->count();
+    }
+
+
 
     public function render()
     {
-        return view('livewire.admin.dashboard.orders-app-alerts');
+       return view('livewire.admin.dashboard.orders-app-alerts', [
+            'orders' => $this->orders,
+            'total' => $this->total_orders_alerts
+        ]);
     }
 }

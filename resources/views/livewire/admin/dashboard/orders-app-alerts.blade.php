@@ -1,43 +1,37 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-    <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center space-x-2">
-            <h3 class="text-lg font-semibold text-gray-900">Alerta de Pedidos no APP</h3>
-            @if($totalOrdersAlerts > 0)
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800">
-                    {{ $totalOrdersAlerts }}
-                </span>
-            @endif
-        </div>
+<div wire:poll.10s>
+    <div class="flex space-x-4 items-center mb-4">
+        <h2 class="text-lg font-semibold">Monitor de Pedidos App</h2>
+        <span class="relative flex h-4 w-4">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+        </span>
     </div>
-    
-    
-    @if($totalOrdersAlerts > 0)
-        <div>
-            <h4 class="text-sm font-medium text-yellow-700 mb-2 flex items-center">
-                <x-icon name="alert-triangle" class="w-4 h-4 mr-1" />
-                Atenção!! Alguns Pedidos precisam ser Reservados...
-            </h4>
-            <div class="space-y-2">
-                @foreach($orders as $order)
-                    <div class="flex items-center justify-between p-2 bg-yellow-50 rounded-lg">
-                        <div>
-                            <span class="text-sm text-gray-900">{{ Str::limit($order['customer_name'], 20) }}</span> <br>
-                            <span class="text-xs text-gray-500 ml-2">Pedido N. :{{ $order['order_number'] }}</span>
-                        </div>
-                        <div>
-                            <a href="{{ route('admin.orders.show', $order['id'] ) }}" class="text-sm font-mono text-green-800 p-2 bg-green-100">VER PEDIDO</a>
-                        </div>
+
+    @if($orders->isEmpty())
+        <p class="text-gray-500 italic">Nenhum pedido pendente no momento...</p>
+    @else
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            @foreach($orders as $order)
+                <div wire:key="order-{{ $order->id }}" class="p-4 relative border rounded-lg transition-all duration-500 hover:bg-gray-50 bg-white shadow-sm">
+                    <div class="absolute -top-3 -right-3 bg-green-100 px-2 rounded-lg">
+                        <span class="text-green-600 font-bold">R$ {{ number_format($order->total, 2, ',', '.') }}</span>
+                    </div>
+                    
+                    <div class="flex">
+                        <span class="font-bold pt-2">#{{ $order->order_number }}</span>
                         
                     </div>
-                @endforeach
-            </div>
-        </div>
-    @endif
-    
-    @if($totalOrdersAlerts === 0)
-        <div class="text-center py-8 text-gray-500">
-            <x-icon name="check-circle" class="w-12 h-12 mx-auto mb-2 text-green-300" />
-            <p>Nenhum pedido feito para reserva!</p>
+                    <p class="text-sm text-gray-600">{{ Str::limit($order->customer_name, 20) }}</p>
+                    <div class="my-2 text-xs text-gray-400 flex justify-between">
+                        <span>{{ $order->payment_method_chosen }}</span>
+                        <span>{{ $order->created_at->diffForHumans() }}</span>
+                        
+                    </div>
+                    <div class="mt-2 flex flex-row-reverse">
+                        <a href="{{ route('admin.orders.show', $order['id'] ) }}" class="text-sm font-mono text-green-800 py-2 px-4 mx-auto bg-green-100 ">VER PEDIDO</a>
+                    </div>
+                </div>
+            @endforeach
         </div>
     @endif
 </div>
