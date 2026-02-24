@@ -120,7 +120,7 @@ class Order extends Model
     {
         // Verifique qual coluna define o pagamento no seu banco. 
         // Geralmente é o status ou a existência da data de pagamento.
-        return $this->status === 'paid' || $this->paid_at !== null;
+        return $this->status === 'paid' || $this->paid_at !== null &&  $this->payment_method_chosen !== 'carteira';
     }
 
 

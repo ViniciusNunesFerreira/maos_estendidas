@@ -44,7 +44,7 @@ class ExternalPaymentService
     public function createOrderPixPayment(Order $order): array
     {
         // Validação: Order já paga
-        if ($order->status === 'paid' && $order->is_invoiced) {
+        if ($order->paid_at && $order->is_invoiced ) {
             throw new PaymentException(
                 'Este pedido já foi pago e faturado.',
                 400,
