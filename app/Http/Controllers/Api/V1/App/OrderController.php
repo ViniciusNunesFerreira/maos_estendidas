@@ -45,6 +45,7 @@ class OrderController extends Controller
         if($filter === 'active'){
             $query->where('is_invoiced', false)
                     ->where('customer_type', 'filho')
+                    ->where('payment_method_chosen', 'carteira')
                     ->whereIn('status', ['delivered', 'ready']);
         }else {
             // Aba "Histórico" (all): Filtra por mês e ano específicos (Padrão: Mês/Ano atual)
