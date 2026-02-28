@@ -21,6 +21,15 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 
+use League\Flysystem\Filesystem;
+use Illuminate\Support\Facades\Storage; 
+use PlatformCommunity\Flysystem\BunnyCDN\BunnyCDNClient;
+use PlatformCommunity\Flysystem\BunnyCDN\BunnyCDNAdapter;
+use Illuminate\Filesystem\FilesystemAdapter;
+
+use App\Services\BunnyStreamService;
+use App\Services\StudyMaterialService;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -57,6 +66,25 @@ class AppServiceProvider extends ServiceProvider
             return true;
         });
 
+        Storage::extend('bunnycdn', function ($app, $config) {
+
+
+            $adapter = new BunnyCDNAdapter(
+                new BunnyCDNClient(
+                    $config['storage_zone'],
+                    $config['api_key'],
+                    $config['region']
+                ),
+                $config['pull_zone']
+            );
+
+            return new FilesystemAdapter(
+                new Filesystem($adapter, $config),
+                $adapter,
+                $config
+            );
+        });
+
         if (!app()->runningInConsole()) {
         
             if (Schema::hasTable('filhos')) { 
@@ -84,5 +112,8 @@ class AppServiceProvider extends ServiceProvider
         Order::observe(OrderObserver::class);
         Product::observe(ProductObserver::class);
         Subscription::observe(SubscriptionObserver::class);
+
+        $this->app->singleton(BunnyStreamService::class);
+        $this->app->singleton(StudyMaterialService::class);
     }
 }

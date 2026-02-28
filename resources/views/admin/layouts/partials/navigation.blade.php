@@ -93,11 +93,29 @@
         
         {{-- Pedidos --}}
         <div class="mt-6 px-4">
+            <p class="px-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Gestão de Pedidos
+            </p>
+
             <a href="{{ route('admin.orders.index') }}" 
                class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.orders.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
                 <x-icon name="shopping-cart" class="w-5 h-5 mr-3" />
                 <span>Pedidos</span>
             </a>
+        </div>
+
+        {{-- Materiais de Estudo --}}
+        <div class="mt-6 px-4">
+            <p class="px-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Arquivos de Aulas
+            </p>
+
+            <a href="{{ route('admin.materials.index') }}"
+                class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.materials.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}" >
+                <x-icon name="play" class="w-5 h-5 mr-3" />
+                <span>Materiais Estudo</span>
+            </a>
+
         </div>
         
         {{-- Relatórios --}}
@@ -123,21 +141,34 @@
                 <x-icon name="banknotes" class="w-5 h-5 mr-3" />
                 <span>Financeiro</span>
             </a>
+
+            
+            
+            
         </div>
+
+
         
         {{-- Configurações --}}
         <div class="mt-6 px-4">
+
+            <p class="px-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Gerenciamento
+            </p>
+
+            <a href="{{ route('admin.settings.payment-gateways') }}" 
+               class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.settings.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
+                <x-icon name="currency-dollar" class="w-5 h-5 mr-3" />
+                <span>Pagamentos</span>
+            </a>
+
             <a href="{{ route('admin.settings.index') }}" 
                class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.settings.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
                 <x-icon name="cog-6-tooth" class="w-5 h-5 mr-3" />
                 <span>Configurações</span>
             </a>
 
-            <a href="{{ route('admin.settings.payment-gateways') }}" 
-               class="flex items-center px-2 py-2.5 mb-1 rounded-lg transition-colors {{ request()->routeIs('admin.settings.*') ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100' }}">
-                <x-icon name="cog-6-tooth" class="w-5 h-5 mr-3" />
-                <span>Pagamentos</span>
-            </a>
+            
         </div>
     </nav>
     

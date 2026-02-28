@@ -89,6 +89,7 @@ class MenuController extends Controller
 
         $query = Category::query()
             ->where('is_active', true)
+            ->where('type', 'product')
             ->whereHas('products', function ($q) use ($request) {
                 $q->where('is_active', true)
                   ->where('available_app', true)

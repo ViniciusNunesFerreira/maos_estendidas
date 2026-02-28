@@ -16,12 +16,7 @@
         
         <!-- Right Actions -->
         <div class="flex items-center space-x-4">
-            <!-- Notifications -->
-            <button class="relative p-2 text-gray-400 hover:text-gray-600">
-                <x-icon name="bell" class="h-6 w-6" />
-                <span class="absolute top-0 right-0 h-2 w-2 bg-red-500 rounded-full"></span>
-            </button>
-            
+                       
             <!-- Settings -->
             <a href="{{ route('admin.settings.index') }}" class="p-2 text-gray-400 hover:text-gray-600">
                 <x-icon name="cog-6-tooth" class="h-6 w-6" />

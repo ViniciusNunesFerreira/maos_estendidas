@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\V1\App\OrderController as AppOrderController;
 use App\Http\Controllers\Api\V1\App\BalanceController as AppBalanceController;
 use App\Http\Controllers\Api\V1\App\PaymentController;
 use App\Http\Controllers\Api\V1\App\TransactionController;
+use App\Http\Controllers\Api\V1\App\StudyMaterialController;
+
 use App\Http\Controllers\Api\V1\PDV\FilhoController as PDVFilhoController;
 use App\Http\Controllers\Api\V1\PDV\ProductController as PDVProductController;
 use App\Http\Controllers\Api\V1\PDV\OrderController as PDVOrderController;
@@ -210,6 +212,39 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{paymentIntent}/status-v2', [PaymentController::class, 'checkStatus']);
                 Route::post('/{paymentIntent}/cancel-v2', [PaymentController::class, 'cancelPaymentV2']);
 
+            });
+
+
+
+
+            Route::prefix('study')->group(function () {
+                // Home do ambiente de estudos
+                Route::get('/', [StudyMaterialController::class, 'home'])
+                    ->name('api.app.study.home');
+
+                // Árvore de categorias
+                Route::get('/categories', [StudyMaterialController::class, 'categories'])
+                    ->name('api.app.study.categories');
+
+                // Categoria com subcategorias e materiais paginados
+                // Query params: ?type=video|ebook|article  &sub={sub_slug}  &page=N
+                Route::get('/categories/{slug}', [StudyMaterialController::class, 'category'])
+                    ->name('api.app.study.category');
+
+                // Busca de materiais
+                // Query params: ?q=termo  &type=video|ebook|article
+                Route::get('/search', [StudyMaterialController::class, 'search'])
+                    ->name('api.app.study.search')
+                    ->middleware('throttle:30,1');  // 30 buscas por minuto
+
+                // Material individual com URL de mídia segura (token Bunny)
+                Route::get('/materials/{slug}', [StudyMaterialController::class, 'material'])
+                    ->name('api.app.study.material');
+
+                // Rastrear visualização
+                Route::post('/materials/{slug}/view', [StudyMaterialController::class, 'trackView'])
+                    ->name('api.app.study.material.view')
+                    ->middleware('throttle:60,1');
             });
             
         });

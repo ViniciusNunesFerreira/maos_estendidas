@@ -82,5 +82,13 @@ return [
         'debug' => env('GETNET_DEBUG', false),
     ],
 
+    'bunny' => [
+        'stream_library_id'  => env('BUNNY_STREAM_LIBRARY_ID'),
+        'stream_api_key'     => env('BUNNY_STREAM_API_KEY'),
+        'cdn_hostname'       => env('BUNNYCDN_PULL_ZONE'),       // ex: files.seusite.b-cdn.net
+        'cdn_security_key'   => env('BUNNY_STREAM_PRIVATE_KEY'),
+        'token_ttl'          => env('BUNNY_TOKEN_TTL', 3600),    // segundos
+    ],
+
 
 ];

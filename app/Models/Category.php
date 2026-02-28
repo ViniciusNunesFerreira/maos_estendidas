@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+
 
 class Category extends Model
 {
@@ -19,6 +21,7 @@ class Category extends Model
         'name',
         'slug',
         'description',
+        'type',
         'icon',
         'color',
         'order',
@@ -29,7 +32,10 @@ class Category extends Model
     protected $casts = [
         'order' => 'integer',
         'is_active' => 'boolean',
+        'study_materials_count' => 'integer',
     ];
+
+    protected $appends = ['study_materials_count'];
 
 
     protected static function boot()
@@ -77,6 +83,11 @@ class Category extends Model
         return $this->hasMany(Product::class);
     }
 
+    public function studyMaterials(): HasMany
+    {
+        return $this->hasMany(StudyMaterial::class);
+    }
+
     public function children(): HasMany
     {
         return $this->hasMany(Category::class, 'parent_id');
@@ -98,7 +109,25 @@ class Category extends Model
         return $query->orderBy('order');
     }
 
+   
 
+
+    protected function studyMaterialsCount(): Attribute
+    {
+        return Attribute::make(
+            get: function (mixed $value, array $attributes) {
+                if (!empty($attributes['parent_id'])) {
+                    return (int) ($attributes['study_materials_count'] ?? $this->studyMaterials()->published()->count());
+                }
+
+                $categoryIds = $this->children()->pluck('id')->push($this->id);
+
+                return \App\Models\StudyMaterial::whereIn('category_id', $categoryIds)
+                    ->published()
+                    ->count();
+            }
+        );
+    }
 
     
 }

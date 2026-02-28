@@ -68,7 +68,11 @@
                                     </div>
                                     
                                     <p class="mt-2 text-xs text-gray-400 font-medium">
-                                        {{ $category->products_count }} produtos vinculados
+                                        @if($category->type === 'product')
+                                            {{ $category->products_count }} produtos vinculados
+                                        @else
+                                            {{ $category->study_materials_count }} materiais vinculados
+                                        @endif
                                     </p>
                                 </div>
 
@@ -121,6 +125,18 @@
                 rows="3" 
                 placeholder="Uma breve descrição para exibição no catálogo..." 
             />
+
+            <div class="grid grid-cols-1 gap-4">
+
+                <x-forms.select 
+                    label="Tipo de Categoria" 
+                    wire:model="type" 
+                    name="type"
+                    id="type"
+                    :options="['product' => 'Produto', 'study_material' => 'Material de Estudo']"
+                />
+
+            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <x-forms.select 

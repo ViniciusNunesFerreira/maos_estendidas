@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\StockController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\StudyMaterialController;
 use App\Http\Controllers\Admin\SettingsController;
 
 use App\Livewire\Admin\Filhos\FilhoSubscriptionForm;
@@ -145,6 +146,21 @@ Route::middleware('role:admin')->prefix('settings')->name('settings.')->group(fu
     Route::post('/general', [SettingsController::class, 'updateGeneral'])->name('general');
     Route::post('/subscription', [SettingsController::class, 'updateSubscription'])->name('subscription');
     Route::post('/fiscal', [SettingsController::class, 'updateFiscal'])->name('fiscal');
+});
+
+//======================================================
+// Materiais de Estudo
+// ======================================================
+
+Route::middleware('role:admin')->prefix('materials')->name('materials.')->group(function () {
+
+    // Study Materials Management
+    Route::get('/', [StudyMaterialController::class, 'index'])->name('index');
+    Route::get('/criar', [StudyMaterialController::class, 'create'])->name('create');
+    Route::get('/{studyMaterial}/editar', [StudyMaterialController::class, 'edit'])->name('edit');
+    
+    Route::delete('/{studyMaterial}', [StudyMaterialController::class, 'destroy'])->name('destroy');
+
 });
 
 // =========================================================

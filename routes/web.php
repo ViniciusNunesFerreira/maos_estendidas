@@ -10,6 +10,7 @@ use App\Notifications\SendMessageWhatsApp;
 use Illuminate\Support\Facades\File;
 
 use App\Models\Filho;
+use App\Models\Order;
 
 
 /*
@@ -49,6 +50,30 @@ Route::get('/pdv/updates', function(){
         echo "<a href='".url('pdv-install/'.$file->getFilename())."'> Download : ". $file->getFilename()." </a> <br>"; // Caminho completo
         echo("========================================= <br>");
     }
+
+});
+
+
+Route::get('/restaurar-saldo', function(){
+
+    $filhos = Filho::where('status', 'active')->with(['orders'])->get();
+
+    $orders = Order::where('type', 'consumption')
+            ->whereNotNull('filho_id')
+            ->whereNotNull('paid_at')
+            ->where('is_invoiced', false)
+            ->where('payment_method_chosen', '!=', 'carteira')
+            ->with(['filho', 'paymentIntent'])
+            ->get();
+
+    foreach($orders as $order){
+        if($order->paymentIntent->exists && $order->paymentIntent->status == 'approved'){
+            $filho = $order->filho;
+            $credit_used = $filho->credit_used;
+            echo 'Filho:('.$filho->full_name.'), usou: R$ '.$credit_used.' de '.$filho->credit_limit.' e pagou: '.$order->total.' em: '.$order->payment_method_chosen;
+        }
+    }
+
 
 });
 

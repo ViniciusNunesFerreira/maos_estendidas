@@ -7,6 +7,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
 {
@@ -44,6 +45,7 @@ class CategoryController extends Controller
             'color' => 'nullable|string|max:7',
             'sort_order' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
+            'type' => ['nullable', Rule::in(['product', 'study_material'])]
         ]);
 
         $validated['slug'] = \Str::slug($validated['name']);

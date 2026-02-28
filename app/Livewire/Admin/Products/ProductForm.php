@@ -196,6 +196,7 @@ class ProductForm extends Component
     public function render()
     {
         $categories = Category::where('is_active', true)
+            ->where('type', 'product')
             ->orderBy('name')
             ->get();
 

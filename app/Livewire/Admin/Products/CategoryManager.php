@@ -6,6 +6,8 @@ use App\Models\Category;
 use Livewire\Component;
 use Illuminate\Support\Str;
 use Livewire\WithPagination;
+use Illuminate\Validation\Rule;
+
 
 class CategoryManager extends Component
 {
@@ -23,6 +25,7 @@ class CategoryManager extends Component
     // Propriedades do Formulário
     public string $name = '';
     public string $description = '';
+    public string $type = 'product';
     public ?string $parent_id = null;
     public string $icon = '';
     public string $color = '#3B82F6';
@@ -37,6 +40,7 @@ class CategoryManager extends Component
         return [
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
+            'type' => ['required', Rule::in(['product', 'study_material'])],
             'parent_id' => [
                 'nullable',
                 'uuid',
@@ -68,6 +72,7 @@ class CategoryManager extends Component
         $category = Category::findOrFail($categoryId);
         
         $this->editingId = $category->id;
+        $this->type = $category->type;
         $this->name = $category->name;
         $this->description = $category->description ?? '';
         $this->parent_id = $category->parent_id;
@@ -92,6 +97,7 @@ class CategoryManager extends Component
     {
         $this->editingId = null;
         $this->name = '';
+        $this->type = 'product';
         $this->description = '';
         $this->parent_id = null;
         $this->icon = '';
@@ -179,7 +185,7 @@ class CategoryManager extends Component
     {
         $query = Category::query()
             ->with(['parent']) // Otimização: Eager Loading
-            ->withCount('products');
+            ->withCount(['products', 'studyMaterials']);
 
         // Aplicar Filtro de Busca
         if ($this->search) {

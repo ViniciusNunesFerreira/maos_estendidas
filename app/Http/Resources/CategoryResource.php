@@ -18,6 +18,7 @@ class CategoryResource extends JsonResource
             'id' => $this->id, // Utiliza o Trait HasUuid presente no model
             'name' => $this->name,
             'slug' => $this->slug,
+            'type' => $this->type,
             'description' => $this->description,
             'appearance' => [
                 'icon' => $this->icon,

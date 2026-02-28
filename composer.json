@@ -17,6 +17,7 @@
         "laravel/tinker": "^2.9",
         "league/fractal": "^0.21.0",
         "livewire/livewire": "^3.7",
+        "platformcommunity/flysystem-bunnycdn": "^3.3",
         "ramsey/uuid": "^4.9",
         "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/laravel-activitylog": "^4.10",
