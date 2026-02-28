@@ -70,7 +70,24 @@ Route::get('/restaurar-saldo', function(){
         if($order->paymentIntent->exists && $order->paymentIntent->status == 'approved'){
             $filho = $order->filho;
             $credit_used = $filho->credit_used;
+
             echo 'Filho:('.$filho->full_name.'), usou: R$ '.$credit_used.' de '.$filho->credit_limit.' e pagou: '.$order->total.' em: '.$order->payment_method_chosen;
+            echo '<br>';
+
+            $order->update( ['is_invoiced' => true, 'status' => 'paid' ] );
+            
+            if( $filho->credit_available < $filho->credit_limit ){
+                echo '<br>disponivel: '.$filho->credit_available;
+                echo '<br>';
+                echo 'limite: '.$filho->credit_limit;
+                echo '<br>';
+                echo 'Usado: '.$filho->credit_used;
+                $used = max(0, $filho->credit_used -= $order->total);
+                echo 'Novo valor Usado: '.$used;
+                $filho->update( ['credit_used' => $used ]);
+
+            }
+        
         }
     }
 
