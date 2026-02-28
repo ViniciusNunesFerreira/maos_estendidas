@@ -389,6 +389,10 @@ class ExternalPaymentService
      */
     private function finalizeOrder(Order $order, Payment $payment): void
     {
+        DB::transaction(function () use ($order, $payment) {
+            
+            $old_status = $order->status;
+
             $status = match($order->origin) {
                 'pdv' => 'delivered',
                 default => 'ready',
@@ -396,19 +400,26 @@ class ExternalPaymentService
 
             $is_invoiced = match($order->origin){
                 'app' => true,
-                default => false
+                default => true
             };
-            
+
+            if ($order->origin === 'app' && $old_status === 'delivered' && $order->payment_method_chosen === 'carteira') {
+                    $filho = $order->filho;
+                    $filho->lockForUpdate()->refresh();
+                    $filho->update( [  'credit_used' => DB::raw("GREATEST(0, credit_used - {$order->total})") ] );
+                    Log::info("Estorno de saldo realizado por pagamento antecipado: Filho #{$filho->full_name}, Valor: {$order->total}");
+            }
+
             $order->update([
                 'payment_intent_id' => $payment->mp_payment_intent_id,
                 'awaiting_external_payment' => false,
-                'status' => $status,
+                'status' => $old_status === 'pending' ? $status : 'completed',
                 'paid_at' => now(),
-                'is_invoiced' => $is_invoiced
+                'is_invoiced' => true
             ]);
 
 
-            if($order->origin === 'app'){
+            if($order->origin === 'app' && $old_status === 'pending'){
                 try{
 
                     $filho = $order->filho;
@@ -430,6 +441,8 @@ class ExternalPaymentService
                 }
 
             }
+
+        });
             
     }
 

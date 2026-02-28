@@ -227,6 +227,7 @@ class FilhoInvoices extends Component
                 'filho_id' => $this->filho->id,
                 'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
                 'type' => 'consumption',
+                'is_avulse' => true,
                 'period_start' => now(),
                 'period_end' => now(),
                 'issue_date' => now(),

@@ -384,35 +384,7 @@ class OrderService
         return $prepared;
     }
 
-    // =========================================================
-    // GESTÃO DE ESTOQUE
-    // =========================================================
-
-    /**
-     * Decrementar estoque
-     */
- /*   protected function decrementStock(array $items): void
-    {
-        foreach ($items as $item) {
-            $product = Product::find($item['product_id']);
-            if ($product && $product->track_stock) {
-                $product->decrement('stock_quantity', $item['quantity']);
-            }
-        }
-    } */
-
-    /**
-     * Incrementar estoque (cancelamento)
-     */
- /*   protected function incrementStock(array $items): void
-    {
-        foreach ($items as $item) {
-            $product = Product::find($item['product_id']);
-            if ($product && $product->track_stock) {
-                $product->increment('stock_quantity', $item['quantity']);
-            }
-        }
-    }*/
+   
 
     // =========================================================
     // UTILIDADES

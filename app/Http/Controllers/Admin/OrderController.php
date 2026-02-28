@@ -118,7 +118,7 @@ class OrderController extends Controller
      * Confirmar pagamento manualmente (Admin)
      * POST /admin/orders/{order}/confirm-payment
      */
-    public function confirmPayment(Request $request, Order $order): RedirectResponse
+   /* public function confirmPayment(Request $request, Order $order): RedirectResponse
     {
         $request->validate([
             'payment_method' => 'required|in:balance,pix,credit_card,debit_card,cash,other',
@@ -128,7 +128,7 @@ class OrderController extends Controller
 
         try {
             // Verificar se já está pago
-            if ($order->payment_status === 'paid') {
+            if ($order->payment_status === 'paid' || $order->payment_status === 'completed') {
                 return redirect()
                     ->back()
                     ->with('error', 'Pedido já foi pago.');
@@ -182,7 +182,7 @@ class OrderController extends Controller
                 ->back()
                 ->with('error', 'Erro ao confirmar pagamento: ' . $e->getMessage());
         }
-    }
+    }*/
 
     /**
      * Corrigir valores do pedido (Admin)

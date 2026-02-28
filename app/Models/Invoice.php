@@ -26,6 +26,7 @@ class Invoice extends Model
         'period_end',
         'issue_date',
         'due_date',
+        'is_avulse',
         // Valores
         'subtotal',
         'discount_amount',

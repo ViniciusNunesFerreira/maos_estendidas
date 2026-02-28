@@ -65,52 +65,36 @@ class CreditRestorationService
             ]);
             return;
         }
+
+        if($invoice->is_avulse){
+            Log::info('Fatura avulsa, não restaura crédito, somente fatura de consumo', [
+                'invoice_id' => $invoice->id,
+                'filho_id' => $filho->id,
+            ]);
+            return;
+        }
         
         // ========== PROCESSAR RESTAURAÇÃO ==========
         
-        DB::beginTransaction();
+            DB::beginTransaction();
         try {
+
+            $filho->lockForUpdate()->refresh();
+            $filho->update( [ 'credit_used' => DB::raw("GREATEST(0, credit_used - {$invoice->total_amount})") ] );
             
             $balanceBefore = $filho->credit_limit - $filho->credit_used;
             $creditToRestore = $filho->credit_used;
-            
-            // 1. Zerar consumo
-            $filho->update([
-                'credit_used' => 0,
-                'is_blocked_by_debt' => false,
-                'block_reason' => null,
-                'blocked_at' => null,
-            ]);
-            
-            $balanceAfter = $filho->credit_limit;
-            
-            // 2. Registrar Transaction para histórico
-            $transaction = Transaction::create([
-                'filho_id' => $filho->id,
-                'type' => 'mensalidade_credit',
-                'amount' => $creditToRestore,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-                'description' => "Pagamento de Fatura #{$invoice->invoice_number}",
-                'notes' => "Limite de crédito restaurado após pagamento integral da fatura de consumo. Período: {$invoice->period_start->format('d/m/Y')} a {$invoice->period_end->format('d/m/Y')}",
-                'created_by_user_id' => config('app.system_user_id', 1), // User ID do sistema
-            ]);
-            
+        
             DB::commit();
             
             // ========== LOG DE SUCESSO ==========
             
             Log::info('Crédito restaurado com sucesso', [
                 'filho_id' => $filho->id,
-                'filho_name' => $filho->user->name,
+                'filho_name' => $filho->full_name,
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
-                'amount_restored' => $creditToRestore,
-                'balance_before' => $balanceBefore,
-                'balance_after' => $balanceAfter,
-                'transaction_id' => $transaction->id,
-                'was_blocked' => $filho->was_blocked_by_debt ?? false,
-                'now_unblocked' => !$filho->is_blocked_by_debt,
+                'amount_restored' => $invoice->total_amount
             ]);
             
         } catch (\Exception $e) {
@@ -123,8 +107,6 @@ class CreditRestorationService
                 'trace' => $e->getTraceAsString(),
             ]);
             
-            // Não lança exception, apenas loga
-            // Para não quebrar o fluxo de confirmação de pagamento
         }
     }
     
