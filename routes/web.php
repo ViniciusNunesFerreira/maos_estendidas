@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Controllers\WelcomeController;
 use App\Notifications\SendMessageWhatsApp;
 use Illuminate\Support\Facades\File;
+use Carbon\Carbon;
 
 use App\Models\Filho;
 use App\Models\Order;
@@ -96,6 +97,9 @@ Route::get('/restaurar-saldo', function(){
 
 Route::get('teste_consulta', function(){
 
+    $today = Carbon::today();
+        $periodStart = $today->copy()->subMonth()->startOfMonth();
+        $periodEnd   = $today->copy()->subMonth()->endOfMonth();
 
             // Buscamos apenas filhos que possuem ordens não faturadas na 'carteira' no mês anterior
             $query = Filho::active()->whereHas('orders', function ($query) use ( $periodStart, $periodEnd) {
