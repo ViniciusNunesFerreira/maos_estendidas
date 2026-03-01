@@ -104,7 +104,7 @@ Route::get('teste-service', function(){
   /* $service =  app(InvoiceService::class);
 
    $service->generateMonthlyInvoices();*/
-
+    $today =  Carbon::today();
    $periodStart = $today->copy()->subMonth()->startOfMonth();
 
     // 2. Prevenção de duplicidade baseada em data (SARGable)
