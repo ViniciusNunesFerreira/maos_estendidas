@@ -94,6 +94,21 @@ Route::get('/restaurar-saldo', function(){
 
 });
 
+Route::get('teste_consulta', function(){
+
+
+            // Buscamos apenas filhos que possuem ordens não faturadas na 'carteira' no mês anterior
+            $query = Filho::active()->whereHas('orders', function ($query) use ( $periodStart, $periodEnd) {
+                    $query->where('payment_method_chosen', 'carteira')
+                        ->where('status', 'delivered')
+                        ->where('is_invoiced', false)
+                        ->whereBetween('created_at', [$periodStart, $periodEnd]);
+                })->get();
+
+        dd($query);
+
+});
+
 
 // =====================================================
 // AUTENTICAÇÃO (Guest)

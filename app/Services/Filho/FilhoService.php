@@ -8,7 +8,6 @@ use App\Models\User;
 use App\DTOs\CreateFilhoDTO;
 use App\DTOs\UpdateFilhoDTO;
 use App\Services\SubscriptionService;
-use App\Jobs\SendFilhoApprovalNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;

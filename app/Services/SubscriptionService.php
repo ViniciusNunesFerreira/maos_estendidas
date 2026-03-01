@@ -10,10 +10,8 @@ use App\Jobs\SendSubscriptionInvoiceNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
+use App\Notifications\SendMessageWhatsApp;
 
-
-use App\Notifications\SubscriptionCreated;
-use App\Notifications\SubscriptionCancelled;
 
 
 class SubscriptionService
@@ -174,10 +172,6 @@ class SubscriptionService
                 referenceMonth: $startedAt
             );
 
-                        // Notificar
-           /* if ($filho->user) {
-                $filho->user->notify(new SubscriptionCreated($subscription));
-            }*/
 
             return $subscription;
 
@@ -186,34 +180,6 @@ class SubscriptionService
     }
 
 
-    /**
-     * Gerar faturas de assinatura pendentes
-     * Executado diariamente
-     */
-    public function generatePendingInvoices(): Collection
-    {
-        $generatedInvoices = collect();
-        
-        $subscriptions = Subscription::dueBilling()->get();
-        
-        foreach ($subscriptions as $subscription) {
-            try {
-                $invoice = $subscription->generateInvoice();
-                
-                // Enviar notificação
-                SendSubscriptionInvoiceNotification::dispatch($invoice);
-                
-                $generatedInvoices->push($invoice);
-            } catch (\Exception $e) {
-                \Log::error("Erro ao gerar fatura de assinatura", [
-                    'subscription_id' => $subscription->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-        
-        return $generatedInvoices;
-    }
 
     /**
      * Verificar faturas de assinatura vencidas
@@ -282,43 +248,10 @@ class SubscriptionService
     {
         $subscription->cancel($reason);
         
-        // Notificar
-        if ($subscription->filho->user) {
-            $subscription->filho->user->notify(new SubscriptionCancelled($subscription));
-        }
-
         return $subscription->fresh();
     }
 
-    /**
-     * Renovar assinatura
-     */
-    public function renew(Subscription $subscription, int $periods = 1): Subscription
-    {
-        return DB::transaction(function () use ($subscription, $periods) {
-            for ($i = 0; $i < $periods; $i++) {
-                // Gerar fatura
-                $this->invoiceService->generateSubscriptionInvoice(
-                    filho: $subscription->filho,
-                    amount: $subscription->amount,
-                    referenceMonth: $subscription->next_billing_date
-                );
-
-                // Atualizar próxima data de cobrança
-                $subscription->update([
-                    'next_billing_date' => $this->calculateNextBillingDate(
-                        $subscription->next_billing_date,
-                        $subscription->plan_type
-                    ),
-                    'last_billing_date' => now(),
-                ]);
-            }
-
-            return $subscription->fresh();
-        });
-    }
-
-
+   
 
     /**
      * Listar faturas de assinatura do filho
@@ -335,30 +268,7 @@ class SubscriptionService
     }
 
 
-     /**
-     * Processar renovações automáticas
-     */
-    public function processAutoRenewals(): int
-    {
-        $count = 0;
-
-        $subscriptions = Subscription::query()
-            ->where('status', 'active')
-            ->where('next_billing_date', '<=', today())
-            ->with('filho')
-            ->get();
-
-        foreach ($subscriptions as $subscription) {
-            try {
-                $this->renew($subscription);
-                $count++;
-            } catch (\Exception $e) {
-                \Log::error("Erro ao renovar assinatura {$subscription->id}: " . $e->getMessage());
-            }
-        }
-
-        return $count;
-    }
+    
 
     /**
      * Processar cancelamentos agendados
@@ -455,6 +365,83 @@ class SubscriptionService
                 'yearly' => Subscription::where('status', 'active')->where('plan_type', 'yearly')->count(),
             ],
         ];
+    }
+
+
+
+    /* METODOS RESPONSÁVEL PELO CRON JOB DE RENOVAÇÃO DA ASSINATURA E GERAÇÃO DAS FATURAS MENSAIS */
+
+    /**
+     * Processa renovações automáticas com controle de memória e tratamento de erros.
+     * Ideal para rodar via Cron Job diariamente.
+     */
+    public function processAutoRenewals(): array
+    {
+        $results = ['success' => 0, 'failed' => 0, 'errors' => []];
+
+        // Usamos chunkById para processar em lotes e não travar o banco/memória em produção
+        Subscription::query()
+            ->active() // Escopo do model: status = 'active'
+            ->where('next_billing_date', '<=', today())
+            ->with('filho')
+            ->chunkById(100, function ($subscriptions) use (&$results) {
+                foreach ($subscriptions as $subscription) {
+                    try {
+                        $this->renewSubscriptionCycle($subscription);
+                        $results['success']++;
+                    } catch (\Exception $e) {
+                        $results['failed']++;
+                        $results['errors'][] = "Assinatura ID {$subscription->id}: " . $e->getMessage();
+                        
+                        // Fundamental registrar o erro silencioso em produção
+                        \Log::error("Falha fatal ao renovar assinatura [{$subscription->id}]: " . $e->getMessage());
+                    }
+                }
+            });
+
+        return $results;
+    }
+
+    /**
+     * Isola a regra de negócio da renovação de um ciclo único garantindo integridade (DB Transaction)
+     */
+    private function renewSubscriptionCycle(Subscription $subscription): void
+    {
+        DB::transaction(function () use ($subscription) {
+            // 1. O next_billing_date atual se torna a referência (Ex: 01/03/2026)
+            $billingReferenceDate = Carbon::parse($subscription->next_billing_date);
+
+            // 2. Calcula os períodos de consumo da fatura
+            $periodEnd = $billingReferenceDate->copy()->subDay();
+            $periodStart = $periodEnd->copy()->startOfMonth();
+            
+            // 3. Calcula o vencimento exato (utiliza a mesma lógica do InvoiceService)
+            $dueDate = $this->invoiceService->getFifthBusinessDay($billingReferenceDate);
+
+            // 4. Gera a Fatura de Assinatura
+            $invoice = $this->invoiceService->generateSubscriptionInvoice(
+                subscription: $subscription,
+                filho: $subscription->filho,
+                amount: $subscription->amount,
+                periodStart: $periodStart,
+                periodEnd: $periodEnd,
+                dueDate: $dueDate
+            );
+
+            // 5. Calcula o próximo gatilho (Adiciona 1 mês exato)
+            $nextBillingCycleDate = $billingReferenceDate->copy()->addMonth();
+
+            // 6. Atualiza a assinatura
+            $subscription->update([
+                'next_billing_date' => $nextBillingCycleDate,
+                'invoices_count' => $subscription->invoices_count + 1,
+            ]);
+
+            // 7. Despacha Job de Notificação Whatsapp
+             if (class_exists(SendSubscriptionInvoiceNotification::class)) {
+                SendSubscriptionInvoiceNotification::dispatch($invoice);
+             }
+        });
     }
 
 

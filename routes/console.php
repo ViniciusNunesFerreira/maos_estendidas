@@ -22,28 +22,29 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote')->hourly();
 
 
-Schedule::command('orders:expire-reservations')->everyMinute();
 
 // =====================================================
 // AGENDAMENTOS (CRON JOBS)
 // =====================================================
 
-Schedule::call(function () {
-    // Gerar faturas de consumo mensais
-    Artisan::call('casalar:generate-invoices');
-})->monthlyOn(1, '00:00') // Todo dia 1 às 00:00
-  ->name('generate-monthly-invoices')
-  ->withoutOverlapping()
-  ->onOneServer();
+Schedule::command('orders:expire-reservations')->everyMinute();
 
-Schedule::call(function () {
-    // Gerar faturas de assinatura
-    Artisan::call('casalar:generate-subscription-invoices');
-})->dailyAt('00:30') // Diariamente às 00:30
+Schedule::command('billing:process-renewals')
+  ->dailyAt('01:00') // Diariamente às 1h da manhã
   ->name('generate-subscription-invoices')
   ->withoutOverlapping()
+  ->appendOutputTo(storage_path('logs/billing_renewals.log'))
   ->onOneServer();
 
+
+
+Schedule::command('billing:send-invoice-reminders');
+  ->dailyAt('22:00') // Diariamente às 09:00
+  ->name('send-invoice-reminders')
+  ->withoutOverlapping()
+  ->onOneServer();
+
+/*
 Schedule::call(function () {
     // Verificar faturas vencidas e bloquear filhos
     Artisan::call('casalar:check-overdue-invoices');
@@ -52,13 +53,8 @@ Schedule::call(function () {
   ->withoutOverlapping()
   ->onOneServer();
 
-Schedule::call(function () {
-    // Enviar lembretes de faturas próximas do vencimento (3 dias antes)
-    Artisan::call('casalar:send-invoice-reminders');
-})->dailyAt('09:00') // Diariamente às 09:00
-  ->name('send-invoice-reminders')
-  ->withoutOverlapping()
-  ->onOneServer();
+
+
 
 Schedule::call(function () {
     // Enviar notificações de estoque baixo
@@ -93,6 +89,7 @@ Schedule::call(function () {
   ->withoutOverlapping()
   ->onOneServer();
 
+*/
 
 // =====================================================
 // COMANDOS DISPONÍVEIS

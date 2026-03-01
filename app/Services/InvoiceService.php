@@ -43,7 +43,13 @@ class InvoiceService
 
         // --- 2. QUERY INTELIGENTE (Edge Case Final de Mês) ---
         
-        $query = Filho::active();
+        // Buscamos apenas filhos que possuem ordens não faturadas na 'carteira' no mês anterior
+        $query = Filho::active()->whereHas('orders', function ($query) use ( $periodStart, $periodEnd) {
+                    $query->where('payment_method_chosen', 'carteira')
+                        ->where('status', 'delivered')
+                        ->where('is_invoiced', false)
+                        ->whereBetween('created_at', [$periodStart, $periodEnd]);
+                });
 
         // Se hoje for o último dia do mês (ex: 28 de fev, 30 de abril),
         // devemos processar também quem tem vencimento nos dias 'inexistentes' (29, 30, 31)
@@ -75,7 +81,8 @@ class InvoiceService
                     }
 
                     // Processa a criação da fatura
-                    $this->createInvoiceForFilho($filho, $periodStart, $periodEnd, $dueDate);
+                   // $this->createInvoiceForFilho($filho, $periodStart, $periodEnd, $dueDate);
+                    $this->processFilhoInvoice($filho, $periodStart, $periodEnd, $dueDate);
                     
                     DB::commit();
                     $generatedCount++;
@@ -102,10 +109,65 @@ class InvoiceService
     }
 
 
+    private function processFilhoInvoice($filho, $start, $end, $dueDate)
+    {
+        DB::transaction(function () use ($filho, $start, $end, $dueDate) {
+            $orders = $filho->orders()
+                ->where('payment_method_chosen', 'carteira')
+                ->where('is_invoiced', false)
+                ->whereBetween('created_at', [$start, $end])
+                ->with('items.product')
+                ->get();
+
+            if ($orders->isEmpty()) return;
+
+            $totalAmount = $orders->sum('total');
+
+            // 1. Criar a Fatura Mãe
+            $invoice = Invoice::create([
+                'filho_id' => $filho->id,
+                'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
+                'type' => 'consumption',
+                'period_start' => $start,
+                'period_end' => $end,
+                'issue_date' => now(),
+                'due_date' => $dueDate,
+                'subtotal' => $totalAmount,
+                'total_amount' => $totalAmount,
+                'status' => 'pending',
+                'notes' => "Fechamento mensal de consumo - " . $start->format('m/Y'),
+            ]);
+
+            // 2. Criar Itens da Fatura e vincular Ordens
+            foreach ($orders as $order) {
+                foreach ($order->items as $item) {
+                    InvoiceItem::create([
+                        'invoice_id' => $invoice->id,
+                        'order_id' => $order->id,
+                        'description' => $item->product->name ?? 'Consumo Lojinha',
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                        'subtotal' => $item->subtotal,
+                        'total' => $item->total,
+                    ]);
+                }
+                
+                // Marca a ordem como faturada
+                $order->markAsInvoiced($invoice);
+            }
+
+            // 3. Despachar para Fila de WhatsApp com Delay para evitar BAN
+            // Usamos um delay incremental ou fixo para humanizar
+           /* ProcessInvoiceNotification::dispatch($filho, $invoice)
+                ->delay(now()->addMinutes(rand(1, 60))); */
+        });
+    }
+
+
     /**
      * Cria a fatura individual (Método helper privado)
      */
-    private function createInvoiceForFilho(Filho $filho, Carbon $start, Carbon $end, Carbon $due): Invoice
+   /* private function createInvoiceForFilho(Filho $filho, Carbon $start, Carbon $end, Carbon $due): Invoice
     {
         // Pega o valor da assinatura ativa ou o padrão do sistema
         // Assumindo que o relacionamento 'subscription' existe e pega a mais recente/ativa
@@ -141,7 +203,7 @@ class InvoiceService
         // SendInvoiceNotification::dispatch($invoice);
 
         return $invoice;
-    }
+    }*/
 
 
     /**
