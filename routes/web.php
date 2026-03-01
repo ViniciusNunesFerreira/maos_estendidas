@@ -10,6 +10,7 @@ use App\Notifications\SendMessageWhatsApp;
 use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Collection;
 
 use App\Models\Filho;
 use App\Models\Order;
