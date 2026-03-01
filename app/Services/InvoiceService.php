@@ -103,12 +103,15 @@ class InvoiceService
                                     'order_id'    => $order->id,
                                     'order_item_id' => $item->id,
                                     'product_id'  => $item->product_id,
+                                    'purchase_date' => $order->created_at,
                                     'description' => $item->product->name ?? 'Consumo',
                                     'quantity'    => $item->quantity,
                                     'unit_price'  => $item->unit_price,
                                     'subtotal'    => $item->subtotal,
                                     'total'       => $item->total,
-                                    'location'    => $item->location,
+                                    'location'    => $item->location ?? 'loja',
+                                    'category'    => $item->category ?? 'Consumo',
+                                    'purchase_date'
                                     'created_at'  => now(),
                                     'updated_at'  => now(),
                                 ];
