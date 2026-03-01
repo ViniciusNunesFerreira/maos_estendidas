@@ -10,9 +10,11 @@ use App\Notifications\SendMessageWhatsApp;
 use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
 use App\Services\InvoiceService;
+use App\Jobs\ProcessInvoiceNotificationJob;
 
 use App\Models\Filho;
 use App\Models\Order;
+use App\Models\Invoice;
 
 
 /*
@@ -55,7 +57,7 @@ Route::get('/pdv/updates', function(){
 
 });
 
-
+/*
 Route::get('/restaurar-saldo', function(){
 
     $filhos = Filho::where('status', 'active')->with(['orders'])->get();
@@ -95,13 +97,34 @@ Route::get('/restaurar-saldo', function(){
 
 
 });
-
+*/
 
 Route::get('teste-service', function(){
 
-   $service =  app(InvoiceService::class);
+  /* $service =  app(InvoiceService::class);
 
-   $service->generateMonthlyInvoices();
+   $service->generateMonthlyInvoices();*/
+
+   $periodStart = $today->copy()->subMonth()->startOfMonth();
+
+    // 2. Prevenção de duplicidade baseada em data (SARGable)
+    $invoices = Invoice::whereNotNull('filho_id')
+        ->where('type', 'consumption')
+        ->where('is_avulse', false)
+        ->where('period_start', $periodStart->format('Y-m-d'))
+        ->get();
+
+        foreach ($invoices as $invoice) {
+                $filho= $invoice->filho;
+
+                ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
+                        ->delay(now()->addMinutes(rand(2, 60))); 
+
+                \Log::info('Job Disparado');
+
+                $filho->update(['credit_used', 0]);
+                \Log::info('Credito do filho: '.$filho->full_name.' renovado no fechamento do mês');
+        }
 
 });
 
