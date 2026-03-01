@@ -109,7 +109,7 @@ Route::get('teste_consulta', function(){
                         ->whereBetween('created_at', [$periodStart, $periodEnd]);
                 })->get();
 
-        dd($query);
+        dump($query);
 
 });
 
