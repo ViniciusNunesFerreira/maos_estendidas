@@ -115,7 +115,7 @@ class InvoiceService
                         $orderIds = $orders->pluck('id')->toArray();
                         Order::whereIn('id', $orderIds)->update([
                             'is_invoiced' => true,
-                            'invoice_id'  => $invoice->id
+                            'invoice_id'  => $invoice->id,
                             'invoiced_at' => now(),
                             'status' => 'completed',
                         ]); 
