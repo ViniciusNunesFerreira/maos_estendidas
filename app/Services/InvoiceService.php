@@ -80,7 +80,7 @@ class InvoiceService
                         \Log::info('Filho: '.$filho->full_name.' tem total em aberto: '.$totalAmount.' Referente a :'.$orders->count().' ordens em aberto');
 
                         // 3. Criação da Fatura
-                   /*     $invoice = Invoice::create([
+                        $invoice = Invoice::create([
                             'filho_id'       => $filho->id,
                             'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
                             'type'           => 'consumption',
@@ -120,15 +120,13 @@ class InvoiceService
                             'status' => 'completed',
                         ]); 
 
-                    */
-
                         $results['generated']++;
                     });
 
                     // 3. Despachar para Fila de WhatsApp com Delay para evitar BAN
                     // Usando um delay incremental ou fixo para humanizar
-                   //  ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
-                    //    ->delay(now()->addMinutes(rand(1, 60))); 
+                    ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
+                    ->delay(now()->addMinutes(rand(1, 60))); 
 
                 } catch (\Exception $e) {
                     Log::error("Falha faturamento Filho {$filho->id}: " . $e->getMessage());
