@@ -212,6 +212,13 @@ class Order extends Model
         ]);
     }
 
+    public function markAsCompleted(): void
+    {
+        $this->update([
+            'status' => 'completed',
+        ]);
+    }
+
     /**
      * Marcar como faturado
      */
@@ -221,6 +228,7 @@ class Order extends Model
             'invoice_id' => $invoice->id,
             'is_invoiced' => true,
             'invoiced_at' => now(),
+            'status' => 'completed',
         ]);
     }
 

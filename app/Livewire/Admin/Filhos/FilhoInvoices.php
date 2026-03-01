@@ -173,6 +173,7 @@ class FilhoInvoices extends Component
 
         $orders = Order::where('filho_id', $this->filho->id)
             ->eligibleForInvoicing()
+            ->where('payment_method_chosen', 'carteira')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->with(['items.product', 'payment'])
             ->get();
@@ -198,7 +199,8 @@ class FilhoInvoices extends Component
         $totalSubtotal = 0;
 
         foreach ($orders as $order) {
-            $order->update(['invoice_id' => $invoice->id, 'is_invoiced' => true, 'invoiced_at' => now(), 'status' => 'completed']);
+           // $order->update(['invoice_id' => $invoice->id, 'is_invoiced' => true, 'invoiced_at' => now(), 'status' => 'completed']);
+            $order->markAsInvoiced($invoice);
             
             foreach ($order->items as $item) {
                 InvoiceItem::create([

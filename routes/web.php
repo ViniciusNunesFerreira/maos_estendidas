@@ -9,8 +9,7 @@ use App\Http\Controllers\WelcomeController;
 use App\Notifications\SendMessageWhatsApp;
 use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Collection;
+use App\Services\InvoiceService;
 
 use App\Models\Filho;
 use App\Models\Order;
@@ -97,59 +96,12 @@ Route::get('/restaurar-saldo', function(){
 
 });
 
-Route::get('teste_consulta', function(){
 
-    $today = Carbon::today();
-        $periodStart = $today->copy()->subMonth()->startOfMonth();
-        $periodEnd   = $today->copy()->subMonth()->endOfMonth();
+Route::get('teste-service', function(){
 
-            // Buscamos apenas filhos que possuem ordens não faturadas na 'carteira' no mês anterior
-            $query = Filho::active()->whereHas('orders', function ($query) use ( $periodStart, $periodEnd) {
-                    $query->where('payment_method_chosen', 'carteira')
-                        ->where('status', 'delivered')
-                        ->where('is_invoiced', false)
-                        ->whereBetween('created_at', [$periodStart, $periodEnd]);
-                });
+   $service =  app(InvoiceService::class);
 
-        
-            $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd) {
-                
-                foreach ($filhos as $filho) {
-                    DB::beginTransaction();
-                    try {
-                        // Verifica se já existe fatura para este mês/ano para evitar duplicidade
-                        // Isso protege contra re-execução do Cron Job
-                        /*$exists = Invoice::where('filho_id', $filho->id)
-                            ->where('type', 'subscription')
-                            ->whereMonth('period_start', $periodStart->month)
-                            ->whereYear('period_start', $periodStart->year)
-                            ->exists();
-
-                        if ($exists) {
-                            DB::commit();
-                            continue; 
-                        }*/
-
-                        // Processa a criação da fatura
-                        echo('<br>');
-                        echo("Filho: ".$filho->full_name);
-                        echo('<br>');
-                        
-                        DB::commit();
-                        
-
-                    } catch (\Exception $e) {
-                        DB::rollBack();
-                        $msg = "Erro Faturamento Filho ID {$filho->id}: {$e->getMessage()}";
-                        
-                        Log::error($msg);
-                    }
-                }
-            
-            // Libera memória explicitamente após cada chunk
-            unset($filhos);
-            gc_collect_cycles();
-        });
+   $service->generateMonthlyInvoices();
 
 });
 

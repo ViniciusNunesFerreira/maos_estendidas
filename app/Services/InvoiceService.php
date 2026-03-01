@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\ProcessInvoiceNotificationJob;
 
 class InvoiceService
 {
@@ -22,188 +23,123 @@ class InvoiceService
      */
     public function generateMonthlyInvoices(?Carbon $referenceDate = null): array
     {
-        // Define a data de referência (hoje)
         $today = $referenceDate ? $referenceDate->copy()->startOfDay() : Carbon::today();
-        
-        $generatedCount = 0;
-        $errors = [];
         $currentDay = $today->day;
         
-        // --- 1. PREPARAÇÃO DE DATAS DO LOTE ---
-        
-        // A fatura gerada HOJE (dia do fechamento) refere-se ao mês anterior completo
-        // Ex: Fechamento 01/02 -> Período: 01/01 a 31/01
         $periodStart = $today->copy()->subMonth()->startOfMonth();
         $periodEnd   = $today->copy()->subMonth()->endOfMonth();
-        
-        // Vencimento: 5º dia útil deste mês atual
-        $dueDate = $this->getFifthBusinessDay($today);
+        $dueDate     = $this->getFifthBusinessDay($today);
 
-        Log::info("Iniciando faturamento em massa. Ref: {$today->format('d/m/Y')}. Vencimento: {$dueDate->format('d/m/Y')}");
+        $results = ['generated' => 0, 'errors' => []];
 
-        // --- 2. QUERY INTELIGENTE (Edge Case Final de Mês) ---
-        
-        // Buscamos apenas filhos que possuem ordens não faturadas na 'carteira' no mês anterior
-        $query = Filho::active()->whereHas('orders', function ($query) use ( $periodStart, $periodEnd) {
-                    $query->where('payment_method_chosen', 'carteira')
-                        ->where('status', 'delivered')
-                        ->where('is_invoiced', false)
-                        ->whereBetween('created_at', [$periodStart, $periodEnd]);
-                });
+        // Query otimizada para buscar apenas quem realmente tem o que faturar
+        $query = Filho::active()
+            ->where(function($q) use ($currentDay, $today) {
+                if ($today->copy()->endOfMonth()->isToday()) {
+                    $q->where('billing_close_day', '>=', $currentDay);
+                } else {
+                    $q->where('billing_close_day', $currentDay);
+                }
+            })
+            ->whereHas('orders', function ($q) use ($periodStart, $periodEnd) {
+                $q->where('payment_method_chosen', 'carteira')
+                ->where('status', 'delivered')
+                ->where('is_invoiced', false)
+                ->whereBetween('created_at', [$periodStart, $periodEnd]);
+            });
 
-        // Se hoje for o último dia do mês (ex: 28 de fev, 30 de abril),
-        // devemos processar também quem tem vencimento nos dias 'inexistentes' (29, 30, 31)
-        if ($today->copy()->endOfMonth()->isToday()) {
-            $query->where('billing_close_day', '>=', $currentDay);
-        } else {
-            $query->where('billing_close_day', $currentDay);
-        }
-
-        // --- 3. PROCESSAMENTO EM LOTES (Chunking) ---
-
-        // Processa em lotes de 100 para não estourar a RAM
-        $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd, $dueDate, &$generatedCount, &$errors) {
-            
+        $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd, $dueDate, &$results) {
             foreach ($filhos as $filho) {
-                DB::beginTransaction();
                 try {
-                    // Verifica se já existe fatura para este mês/ano para evitar duplicidade
-                    // Isso protege contra re-execução do Cron Job
-                    $exists = Invoice::where('filho_id', $filho->id)
-                        ->where('type', 'subscription')
-                        ->whereMonth('period_start', $periodStart->month)
-                        ->whereYear('period_start', $periodStart->year)
-                        ->exists();
+                    // DB Transaction externa para garantir que a Fatura + Itens + Update Orders sejam atômicos
+                    DB::transaction(function () use ($filho, $periodStart, $periodEnd, $dueDate, &$results) {
+                        
+                        // 1. Lock For Update: Evita que outro processo mexa nessas ordens simultaneamente
+                        $orders = $filho->orders()
+                            ->where('payment_method_chosen', 'carteira')
+                            ->where('status', 'delivered')
+                            ->where('is_invoiced', false)
+                            ->whereBetween('created_at', [$periodStart, $periodEnd])
+                            ->with('items.product')
+                            ->lockForUpdate() 
+                            ->get();
 
-                    if ($exists) {
-                        DB::commit();
-                        continue; 
-                    }
+                        if ($orders->isEmpty()) return;
 
-                    // Processa a criação da fatura
-                   // $this->createInvoiceForFilho($filho, $periodStart, $periodEnd, $dueDate);
-                    $this->processFilhoInvoice($filho, $periodStart, $periodEnd, $dueDate);
-                    
-                    DB::commit();
-                    $generatedCount++;
+                        // 2. Prevenção de duplicidade baseada em data (SARGable)
+                        $alreadyInvoiced = Invoice::where('filho_id', $filho->id)
+                            ->where('type', 'consumption')
+                            ->where('is_avulse', false)
+                            ->where('period_start', $periodStart->format('Y-m-d'))
+                            ->exists();
+
+                        if ($alreadyInvoiced) return;
+
+                        $totalAmount = $orders->sum('total');
+
+                        \Log::info('Filho: '.$filho->full_name.' tem total em aberto: '.$totalAmount.' Referente a :'.$orders->count().' ordens em aberto');
+
+                        // 3. Criação da Fatura
+                   /*     $invoice = Invoice::create([
+                            'filho_id'       => $filho->id,
+                            'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
+                            'type'           => 'consumption',
+                            'period_start'   => $periodStart,
+                            'period_end'     => $periodEnd,
+                            'issue_date'     => now(),
+                            'due_date'       => $dueDate,
+                            'total_amount'   => $totalAmount,
+                            'status'         => 'pending',
+                        ]);
+
+                        // 4. Bulk Insert de Itens (Alta Performance)
+                        $invoiceItems = [];
+                        foreach ($orders as $order) {
+                            foreach ($order->items as $item) {
+                                $invoiceItems[] = [
+                                    'invoice_id'  => $invoice->id,
+                                    'order_id'    => $order->id,
+                                    'description' => $item->product->name ?? 'Consumo',
+                                    'quantity'    => $item->quantity,
+                                    'unit_price'  => $item->unit_price,
+                                    'total'       => $item->total,
+                                    'created_at'  => now(),
+                                    'updated_at'  => now(),
+                                ];
+                            }
+                        }
+                        
+                        InvoiceItem::insert($invoiceItems);
+
+                        // 5. Update em Massa das Ordens
+                        $orderIds = $orders->pluck('id')->toArray();
+                        Order::whereIn('id', $orderIds)->update([
+                            'is_invoiced' => true,
+                            'invoice_id'  => $invoice->id
+                            'invoiced_at' => now(),
+                            'status' => 'completed',
+                        ]); 
+
+                    */
+
+                        $results['generated']++;
+                    });
+
+                    // 3. Despachar para Fila de WhatsApp com Delay para evitar BAN
+                    // Usando um delay incremental ou fixo para humanizar
+                   //  ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
+                    //    ->delay(now()->addMinutes(rand(1, 60))); 
 
                 } catch (\Exception $e) {
-                    DB::rollBack();
-                    $msg = "Erro Faturamento Filho ID {$filho->id}: {$e->getMessage()}";
-                    $errors[] = $msg;
-                    Log::error($msg);
+                    Log::error("Falha faturamento Filho {$filho->id}: " . $e->getMessage());
+                    $results['errors'][] = $filho->id;
                 }
             }
-            
-            // Libera memória explicitamente após cada chunk
-            unset($filhos);
-            gc_collect_cycles();
         });
 
-        Log::info("Faturamento concluído. Gerados: {$generatedCount}. Erros: " . count($errors));
-
-        return [
-            'generated_count' => $generatedCount,
-            'errors' => $errors
-        ];
+        return $results;
     }
 
-
-    private function processFilhoInvoice($filho, $start, $end, $dueDate)
-    {
-        DB::transaction(function () use ($filho, $start, $end, $dueDate) {
-            $orders = $filho->orders()
-                ->where('payment_method_chosen', 'carteira')
-                ->where('is_invoiced', false)
-                ->whereBetween('created_at', [$start, $end])
-                ->with('items.product')
-                ->get();
-
-            if ($orders->isEmpty()) return;
-
-            $totalAmount = $orders->sum('total');
-
-            // 1. Criar a Fatura Mãe
-            $invoice = Invoice::create([
-                'filho_id' => $filho->id,
-                'invoice_number' => Invoice::generateNextInvoiceNumber('consumption'),
-                'type' => 'consumption',
-                'period_start' => $start,
-                'period_end' => $end,
-                'issue_date' => now(),
-                'due_date' => $dueDate,
-                'subtotal' => $totalAmount,
-                'total_amount' => $totalAmount,
-                'status' => 'pending',
-                'notes' => "Fechamento mensal de consumo - " . $start->format('m/Y'),
-            ]);
-
-            // 2. Criar Itens da Fatura e vincular Ordens
-            foreach ($orders as $order) {
-                foreach ($order->items as $item) {
-                    InvoiceItem::create([
-                        'invoice_id' => $invoice->id,
-                        'order_id' => $order->id,
-                        'description' => $item->product->name ?? 'Consumo Lojinha',
-                        'quantity' => $item->quantity,
-                        'unit_price' => $item->unit_price,
-                        'subtotal' => $item->subtotal,
-                        'total' => $item->total,
-                    ]);
-                }
-                
-                // Marca a ordem como faturada
-                $order->markAsInvoiced($invoice);
-            }
-
-            // 3. Despachar para Fila de WhatsApp com Delay para evitar BAN
-            // Usamos um delay incremental ou fixo para humanizar
-           /* ProcessInvoiceNotification::dispatch($filho, $invoice)
-                ->delay(now()->addMinutes(rand(1, 60))); */
-        });
-    }
-
-
-    /**
-     * Cria a fatura individual (Método helper privado)
-     */
-   /* private function createInvoiceForFilho(Filho $filho, Carbon $start, Carbon $end, Carbon $due): Invoice
-    {
-        // Pega o valor da assinatura ativa ou o padrão do sistema
-        // Assumindo que o relacionamento 'subscription' existe e pega a mais recente/ativa
-        $subscription = $filho->subscription; 
-        $amount = $subscription ? $subscription->amount : config('casalar.subscription.default_amount');
-
-        $invoice = Invoice::create([
-            'filho_id' => $filho->id,
-            'type' => 'subscription',
-            'invoice_number' => Invoice::generateNextInvoiceNumber('subscription'),
-            'period_start' => $start,
-            'period_end' => $end,
-            'issue_date' => now(),
-            'due_date' => $due,
-            'subtotal' => $amount,
-            'total_amount' => $amount,
-            'status' => 'pending',
-            'notes' => "Mensalidade referente a " . $start->translatedFormat('F/Y'),
-        ]);
-
-        InvoiceItem::create([
-            'invoice_id' => $invoice->id,
-            'description' => "Mensalidade - " . $start->translatedFormat('F/Y'),
-            'category' => 'Mensalidade',
-            'quantity' => 1,
-            'unit_price' => $amount,
-            'subtotal' => $amount,
-            'total' => $amount,
-            'purchase_date' => now(),
-        ]);
-
-        // Dispara notificação se necessário (Job na fila)
-        // SendInvoiceNotification::dispatch($invoice);
-
-        return $invoice;
-    }*/
 
 
     /**
