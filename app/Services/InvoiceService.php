@@ -14,6 +14,7 @@ use Illuminate\Support\Collection;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use App\Jobs\ProcessInvoiceNotificationJob;
+use Illuminate\Support\Str;
 
 class InvoiceService
 {
@@ -97,12 +98,17 @@ class InvoiceService
                         foreach ($orders as $order) {
                             foreach ($order->items as $item) {
                                 $invoiceItems[] = [
+                                    'id'          => (string) Str::uuid(),
                                     'invoice_id'  => $invoice->id,
                                     'order_id'    => $order->id,
+                                    'order_item_id' => $item->id,
+                                    'product_id'  => $item->product_id,
                                     'description' => $item->product->name ?? 'Consumo',
                                     'quantity'    => $item->quantity,
                                     'unit_price'  => $item->unit_price,
+                                    'subtotal'    => $item->subtotal,
                                     'total'       => $item->total,
+                                    'location'    => $item->location,
                                     'created_at'  => now(),
                                     'updated_at'  => now(),
                                 ];
