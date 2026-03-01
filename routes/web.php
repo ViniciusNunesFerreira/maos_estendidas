@@ -109,7 +109,7 @@ Route::get('teste_consulta', function(){
                         ->where('status', 'delivered')
                         ->where('is_invoiced', false)
                         ->whereBetween('created_at', [$periodStart, $periodEnd]);
-                })->get();
+                });
 
         
             $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd) {
