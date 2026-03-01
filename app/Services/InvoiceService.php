@@ -111,7 +111,6 @@ class InvoiceService
                                     'total'       => $item->total,
                                     'location'    => $item->location ?? 'loja',
                                     'category'    => $item->category ?? 'Consumo',
-                                    'purchase_date'
                                     'created_at'  => now(),
                                     'updated_at'  => now(),
                                 ];
