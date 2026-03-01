@@ -52,6 +52,9 @@ class InvoiceService
         $query->chunkById(100, function ($filhos) use ($periodStart, $periodEnd, $dueDate, &$results) {
             foreach ($filhos as $filho) {
                 try {
+                    
+                    $invoice = null;
+
                     // DB Transaction externa para garantir que a Fatura + Itens + Update Orders sejam atômicos
                     DB::transaction(function () use ($filho, $periodStart, $periodEnd, $dueDate, &$results) {
                         
@@ -133,8 +136,10 @@ class InvoiceService
 
                     // 3. Despachar para Fila de WhatsApp com Delay para evitar BAN
                     // Usando um delay incremental ou fixo para humanizar
-                    ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
-                    ->delay(now()->addMinutes(rand(1, 60))); 
+                    if ($invoice) {
+                        ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
+                        ->delay(now()->addMinutes(rand(1, 60))); 
+                    }
 
                 } catch (\Exception $e) {
                     Log::error("Falha faturamento Filho {$filho->id}: " . $e->getMessage());
