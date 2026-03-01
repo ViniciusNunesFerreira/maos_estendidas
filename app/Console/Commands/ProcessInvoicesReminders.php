@@ -9,14 +9,8 @@ class ProcessInvoicesReminders extends Command
 {
     protected $signature = 'billing:send-invoice-reminders';
 
-    protected $description = 'Relebra vencimento de faturas próximo de 3 dias'
+    protected $description = 'Relebra vencimento de faturas próximo de 3 dias';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Command description';
 
     /**
      * Execute the console command.
