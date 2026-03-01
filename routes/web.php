@@ -105,7 +105,7 @@ Route::get('teste-service', function(){
 
    $service->generateMonthlyInvoices();*/
     $today =  Carbon::today();
-   $periodStart = $today->copy()->subMonth()->startOfMonth();
+    $periodStart = $today->copy()->subMonth()->startOfMonth();
 
     // 2. Prevenção de duplicidade baseada em data (SARGable)
     $invoices = Invoice::whereNotNull('filho_id')
@@ -116,13 +116,7 @@ Route::get('teste-service', function(){
 
         foreach ($invoices as $invoice) {
                 $filho= $invoice->filho;
-
-                ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
-                        ->delay(now()->addMinutes(rand(2, 60))); 
-
-                \Log::info('Job Disparado');
-
-                $filho->update(['credit_used', 0]);
+                $filho->update(['credit_used' => 0 ]);
                 \Log::info('Credito do filho: '.$filho->full_name.' renovado no fechamento do mês');
         }
 

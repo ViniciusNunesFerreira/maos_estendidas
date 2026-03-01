@@ -131,7 +131,7 @@ class InvoiceService
                             'status' => 'completed',
                         ]); 
 
-                        $filho->update(['credit_used', 0]);
+                        $filho->update(['credit_used' => 0]);
 
                         \Log::info('Credito do filho: '.$filho->full_name.' renovado no fechamento do mês');
 
