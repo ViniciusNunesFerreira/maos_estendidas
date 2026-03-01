@@ -38,8 +38,8 @@ Schedule::command('billing:process-renewals')
 
 
 
-Schedule::command('billing:send-invoice-reminders');
-  ->dailyAt('22:00') // Diariamente às 09:00
+Schedule::command('billing:send-invoice-reminders')
+  ->dailyAt('22:00') 
   ->name('send-invoice-reminders')
   ->withoutOverlapping()
   ->onOneServer();
