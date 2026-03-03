@@ -76,6 +76,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [ResetPasswordController::class, 'reset'])->name('password.update');
 });
 
+Route::get('/admin/orders/{order}/print', function (Order $order) {
+    return view('admin.orders.print', compact('order'));
+})->name('admin.orders.print')->middleware('auth');
+
 // =====================================================
 // LOGOUT (Authenticated)
 // =====================================================

@@ -235,3 +235,15 @@
         </div>
     @endif
 </div>
+
+@script
+<script>
+    $wire.on('open-print-job', (event) => {
+        const printWindow = window.open(event.url, '_blank', 'width=300,height=600');
+        
+        // Se quiser automatizar 100% (Silent Print), a maioria dos browsers 
+        // exige configuração na flag do atalho (--kiosk-printing)
+        // Caso contrário, ele abrirá o diálogo padrão de impressão.
+    });
+</script>
+@endscript

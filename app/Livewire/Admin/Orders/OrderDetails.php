@@ -5,6 +5,7 @@ namespace App\Livewire\Admin\Orders;
 use App\Models\Order;
 use App\Services\OrderService;
 use Livewire\Component;
+use Illuminate\Support\Facades\URL;
 
 class OrderDetails extends Component
 {
@@ -88,7 +89,13 @@ class OrderDetails extends Component
 
     public function printOrder(): void
     {
-        $this->dispatch('printOrder', orderId: $this->order->id);
+        $url = URL::temporarySignedRoute(
+            'admin.orders.print', 
+            now()->addMinutes(1), 
+            ['order' => $this->order->id]
+        );
+
+        $this->dispatch('open-print-job', url: $url);
     }
 
     public function render()
