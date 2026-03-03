@@ -3,10 +3,11 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use App\Services\MotivationalMessageService;
 
 /*
 |--------------------------------------------------------------------------
-| Console Routes - Casa Lar
+| Console Routes Mãos Estendidas
 |--------------------------------------------------------------------------
 |
 | Comandos Artisan e agendamentos do sistema
@@ -27,6 +28,13 @@ Artisan::command('inspire', function () {
 // AGENDAMENTOS (CRON JOBS)
 // =====================================================
 
+
+Schedule::command('app:pai-de-santo-message')
+  ->dailyAt('14:200') // Diariamente às 14h 
+  ->name('envio-pai-de-santo-message')
+  ->withoutOverlapping()
+  ->onOneServer();
+
 Schedule::command('orders:expire-reservations')->everyMinute();
 
 Schedule::command('billing:process-renewals')
@@ -37,6 +45,12 @@ Schedule::command('billing:process-renewals')
   ->onOneServer();
 
 
+Schedule::command('app:generate-monthly-invoices')
+->monthlyOn(1, '06:00') // Inicio do Mês às 8h da manhã
+->name('generate-monthly-invoices')
+->withoutOverlapping()
+->appendOutputTo(storage_path('logs/billing_invoices_mensal.log'))
+->onOneServer();
 
 Schedule::command('billing:send-invoice-reminders')
   ->dailyAt('22:00') 
@@ -144,13 +158,6 @@ Schedule::call(function () {
 // =====================================================
 // MONITORAMENTO DE JOBS FALHADOS
 // =====================================================
-
-Schedule::call(function () {
-    // Notificar admins sobre jobs falhados
-    Artisan::call('casalar:notify-failed-jobs');
-})->hourly() // A cada hora
-  ->name('notify-failed-jobs')
-  ->onOneServer();
 
 // =====================================================
 // HEALTH CHECKS

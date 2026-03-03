@@ -142,7 +142,7 @@ class InvoiceService
                     // Usando um delay incremental ou fixo para humanizar
                     if ($invoice) {
                         ProcessInvoiceNotificationJob::dispatch($filho, $invoice)
-                        ->delay(now()->addMinutes(rand(1, 60))); 
+                        ->delay(now()->addMinutes(rand(5, 120))); 
                     }
 
                 } catch (\Exception $e) {

@@ -23,23 +23,39 @@ class ProcessInvoiceNotificationJob implements ShouldQueue
             return;
         }
 
-        $saudacoes = ['Olá', 'Bom dia', 'Tudo bem?', 'Saudações'];
-        $saudacao = $saudacoes[array_rand($saudacoes)];
-        
+        $name_parts = explode(' ', $this->filho->full_name);
+        $name = $name_parts[0]; 
         $vencimento = $this->invoice->due_date->format('d/m/Y');
-        $valor = number_format($this->invoice->total_amount, 2, ',', '.');
-        
-        $mensagem = "{$saudacao}, {$this->filho->user->name}! 👋\n\n" .
-                    "Informamos que o fechamento da fatura de consumo (Lojinha) referente ao mês passado foi realizado.\n\n" .
-                    "*Resumo:* \n" .
-                    "💰 Valor: R$ {$valor}\n" .
-                    "📅 Vencimento: {$vencimento}\n\n" .
-                    "Você pode acessar os detalhes e o boleto no seu painel. Em caso de dúvidas, estamos à disposição!";
 
-        // Envia presença de 'digitando' por 3 segundos para parecer humano
+        $saudacoes = ["Olá, {$name}! Tudo bem por aí?", "Bom dia, {$name}! como você está? ", "Oii, tudo bem {$name}?", "Oii {$name}, cê tá bem?", 'E ai, tudo bem?', "Oii tudo bom?", "Olá {$name}, como estão as coisas?", "Oi amor, tudo bem?"];
+        $corpos = [
+            "O fechamento da lojinha do mês passado foi realizado.",
+            "O fechamento mensal com vencimento: {$vencimento}, foi realizado.",
+            "Passando para informar que processamos seu fechamento da lojinha, do mês passado.",
+            "Já fizemos o seu fechamento da lojinha do mês passado.",
+            "Só pra avisar que o sistema já calculou o fechamento do mês, que vence em: {$vencimento}.",
+        ];
+       
+        $fechamentos = [ 'Qualquer dúvida é só chamar. Abraço!', 
+                    'Confere lá no app.', 
+                    'Pode confirmar se recebeu?',
+                    'Só conferir no seu aplicativo.', 
+                    'Dá uma conferida e qualquer dúvida pode chamar...', 
+                    'Agora você pode ver os detalhes no seu app, tá.',
+                    'Dá uma olhada se recebeu e  me confirma, ok.'];
+
+
+        $msg = $saudacoes[array_rand($saudacoes)] . "\n\n";
+        $msg .= $corpos[array_rand($corpos)] . "\n\n";
+        $msg .= $fechamentos[array_rand($fechamentos)];
+
+        // Envia presença de 'digitando' por 5 segundos para parecer humano
         $zapi->sendPresence($this->filho->phone, 'composing');
-        sleep(rand(5, 8));
-        $zapi->sendMessage($this->filho->phone, $mensagem);
+
+        $typingSeconds = ceil(strlen($msg) / 12) + rand(2, 5);
+        sleep($typingSeconds);
+
+        $zapi->sendMessage($this->filho->phone, $msg);
 
     }
 

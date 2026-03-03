@@ -41,9 +41,6 @@ Route::get('/pdv/updates', function(){
     // Listar arquivos na raiz do disco 'local'
     $files = File::files(public_path('pdv-install'));
 
-  
-
-
     foreach ($files as $file) {
        $last_changed = date('d/m/Y H:i:s', $file->getCTime()); 
 
@@ -57,70 +54,6 @@ Route::get('/pdv/updates', function(){
 
 });
 
-/*
-Route::get('/restaurar-saldo', function(){
-
-    $filhos = Filho::where('status', 'active')->with(['orders'])->get();
-
-    $orders = Order::where('type', 'consumption')
-            ->whereNotNull('filho_id')
-            ->whereNotNull('paid_at')
-            ->where('is_invoiced', false)
-            ->where('payment_method_chosen', '!=', 'carteira')
-            ->with(['filho', 'paymentIntent'])
-            ->get();
-
-    foreach($orders as $order){
-        if($order->paymentIntent->exists && $order->paymentIntent->status == 'approved'){
-            $filho = $order->filho;
-            $credit_used = $filho->credit_used;
-
-            echo 'Filho:('.$filho->full_name.'), usou: R$ '.$credit_used.' de '.$filho->credit_limit.' e pagou: '.$order->total.' em: '.$order->payment_method_chosen;
-            echo '<br>';
-
-            $order->update( ['is_invoiced' => true, 'status' => 'paid' ] );
-            
-            if( $filho->credit_available < $filho->credit_limit ){
-                echo '<br>disponivel: '.$filho->credit_available;
-                echo '<br>';
-                echo 'limite: '.$filho->credit_limit;
-                echo '<br>';
-                echo 'Usado: '.$filho->credit_used;
-                $used = max(0, $filho->credit_used -= $order->total);
-                echo 'Novo valor Usado: '.$used;
-                $filho->update( ['credit_used' => $used ]);
-
-            }
-        
-        }
-    }
-
-
-});
-*/
-
-Route::get('teste-service', function(){
-
-  /* $service =  app(InvoiceService::class);
-
-   $service->generateMonthlyInvoices();*/
-    $today =  Carbon::today();
-    $periodStart = $today->copy()->subMonth()->startOfMonth();
-
-    // 2. Prevenção de duplicidade baseada em data (SARGable)
-    $invoices = Invoice::whereNotNull('filho_id')
-        ->where('type', 'consumption')
-        ->where('is_avulse', false)
-        ->where('period_start', $periodStart->format('Y-m-d'))
-        ->get();
-
-        foreach ($invoices as $invoice) {
-                $filho= $invoice->filho;
-                $filho->update(['credit_used' => 0 ]);
-                \Log::info('Credito do filho: '.$filho->full_name.' renovado no fechamento do mês');
-        }
-
-});
 
 
 // =====================================================
@@ -128,8 +61,6 @@ Route::get('teste-service', function(){
 // =====================================================
 
 Route::middleware('guest')->group(function () {
-    
-
         // Login com Rate Limiting (5 tentativas por minuto)
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login'])
