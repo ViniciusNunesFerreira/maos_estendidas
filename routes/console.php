@@ -30,7 +30,7 @@ Artisan::command('inspire', function () {
 
 
 Schedule::command('app:pai-de-santo-message')
-  ->dailyAt('14:200') // Diariamente às 14h 
+  ->dailyAt('14:20') // Diariamente às 14h 
   ->name('envio-pai-de-santo-message')
   ->withoutOverlapping()
   ->onOneServer();
