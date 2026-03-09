@@ -116,6 +116,7 @@ class OrderDetails extends Component
             'confirmed' => ['preparing' => 'Iniciar Preparo', 'cancelled' => 'Cancelar'],
             'preparing' => ['ready' => 'Marcar Pronto', 'cancelled' => 'Cancelar'],
             'ready' => ['delivered' => 'Marcar Entregue', 'cancelled' => 'Cancelar'],
+            'delivered' => ['completed' => 'Quitar Ordem', 'cancelled' => 'Cancelar'],
         ];
 
         return view('livewire.admin.orders.order-details', [
