@@ -154,18 +154,3 @@ Schedule::call(function () {
  * php artisan casalar:update
  * - Executa migrations e otimizações após update
  */
-
-// =====================================================
-// MONITORAMENTO DE JOBS FALHADOS
-// =====================================================
-
-// =====================================================
-// HEALTH CHECKS
-// =====================================================
-
-Schedule::call(function () {
-    // Verificar saúde do sistema
-    Artisan::call('casalar:health-check');
-})->everyFifteenMinutes() // A cada 15 minutos
-  ->name('system-health-check')
-  ->onOneServer();

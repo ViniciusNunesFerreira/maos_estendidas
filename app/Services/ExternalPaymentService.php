@@ -403,7 +403,7 @@ class ExternalPaymentService
                 default => true
             };
 
-            if ($order->origin === 'app' && $old_status === 'delivered' && $order->payment_method_chosen === 'carteira') {
+            if ($old_status === 'delivered' && $order->payment_method_chosen === 'carteira') {
                     $filho = $order->filho;
                     $filho->lockForUpdate()->refresh();
                     $filho->update( [  'credit_used' => DB::raw("GREATEST(0, credit_used - {$order->total})") ] );
