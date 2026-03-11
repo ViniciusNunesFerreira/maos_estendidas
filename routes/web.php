@@ -107,10 +107,10 @@ Route::get('/admin/reconcile-filhos-credit', function () {
                         ];
 
                         // Ajusta o saldo para bater exatamente com a dívida real
-                    /*  $filho->update([
+                         $filho->update([
                             'credit_used' => $realDebt,
                             'notes' => $filho->notes . "\n[SISTEMA] Saldo recalculado em " . now()->format('d/m/Y') . ". Diferença de {$difference} removida."
-                        ]);*/
+                        ]);
 
                         Log::info("RECONCILIAÇÃO: Filho #{$filho->full_name} corrigido. Banco: {$filho->credit_used}, Real: {$realDebt}");
                     }
