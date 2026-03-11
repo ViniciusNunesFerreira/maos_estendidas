@@ -58,7 +58,7 @@ Route::get('/pdv/updates', function(){
 
 Route::get('/admin/reconcile-filhos-credit', function () {
     // 1. Buscamos todos os filhos que possuem algum crédito em uso
-    $filhos = Filho::where('credit_used', '>', 0)->get();
+    $filhoIds = Filho::where('credit_used', '>', 0)->pluck('id');
 
     $report = [
         'analyzed' => 0,
@@ -67,56 +67,63 @@ Route::get('/admin/reconcile-filhos-credit', function () {
         'details' => []
     ];
 
-    DB::transaction(function () use ($filhos, &$report) {
-        foreach ($filhos as $filho) {
-            $report['analyzed']++;
-            
-            // Bloqueio para evitar mudanças durante o cálculo
-            $filho->lockForUpdate()->refresh();
+    
+        foreach ($filhoIds as $id) {
 
-            /** * 2. CÁLCULO DA DÍVIDA REAL
-             * Somamos o total de pedidos que:
-             * - Pertencem a este filho
-             * - Estão entregues (delivered) ou completados
-             * - NÃO foram pagos ainda (paid_at é nulo)
-             * - Foram feitos na "Carteira"
-             */
-            $realDebt = Order::where('filho_id', $filho->id)
-                ->where('customer_type', 'filho')
-                ->where('status', 'delivered')
-                ->where('is_invoiced', false)
-                ->whereNull('invoice_id')
-                ->where('payment_method_chosen', 'carteira')
-                ->sum('total');
+            try {
 
-            /**
-             * 3. COMPARAÇÃO DE SEGURANÇA
-             * Se o credit_used no banco for maior que a dívida real calculada,
-             * significa que há um "fantasma" de saldo preso.
-             */
-            if ($filho->credit_used > ($realDebt + 0.01)) { // Margem de 1 centavo para floats
-                $difference = $filho->credit_used - $realDebt;
+                DB::transaction(function () use ($id, &$report) {
 
-                $report['fixed']++;
-                $report['total_restored'] += $difference;
-                $report['details'][] = [
-                    'filho' => $filho->full_name,
-                    'id' => $filho->id,
-                    'saldo_no_banco' => $filho->credit_used,
-                    'divida_real_calculada' => $realDebt,
-                    'ajuste_realizado' => $difference
-                ];
+                    $filho = Filho::where('id', $id)->lockForUpdate()->first();
 
-                // Ajusta o saldo para bater exatamente com a dívida real
-              /*  $filho->update([
-                    'credit_used' => $realDebt,
-                    'notes' => $filho->notes . "\n[SISTEMA] Saldo recalculado em " . now()->format('d/m/Y') . ". Diferença de {$difference} removida."
-                ]);*/
+                    if (!$filho) return;
 
-                Log::info("RECONCILIAÇÃO: Filho #{$filho->full_name} corrigido. Banco: {$filho->credit_used}, Real: {$realDebt}");
+                    $report['analyzed']++;
+                    
+                    $realDebt = Order::where('filho_id', $filho->id)
+                        ->where('customer_type', 'filho')
+                        ->where('status', 'delivered')
+                        ->where('is_invoiced', false)
+                        ->whereNull('invoice_id')
+                        ->where('payment_method_chosen', 'carteira')
+                        ->sum('total');
+
+                    /**
+                     * 3. COMPARAÇÃO DE SEGURANÇA
+                     * Se o credit_used no banco for maior que a dívida real calculada,
+                     * significa que há um "fantasma" de saldo preso.
+                     */
+                    if ($filho->credit_used > ($realDebt + 0.01)) { // Margem de 1 centavo para floats
+                        $difference = $filho->credit_used - $realDebt;
+
+                        $report['fixed']++;
+                        $report['total_restored'] += $difference;
+                        $report['details'][] = [
+                            'filho' => $filho->full_name,
+                            'id' => $filho->id,
+                            'saldo_no_banco' => $filho->credit_used,
+                            'divida_real_calculada' => $realDebt,
+                            'ajuste_realizado' => $difference
+                        ];
+
+                        // Ajusta o saldo para bater exatamente com a dívida real
+                    /*  $filho->update([
+                            'credit_used' => $realDebt,
+                            'notes' => $filho->notes . "\n[SISTEMA] Saldo recalculado em " . now()->format('d/m/Y') . ". Diferença de {$difference} removida."
+                        ]);*/
+
+                        Log::info("RECONCILIAÇÃO: Filho #{$filho->full_name} corrigido. Banco: {$filho->credit_used}, Real: {$realDebt}");
+                    }
+
+                });
+                
+            } catch (\Exception $e) {
+                $report['errors'][] = "Erro no Filho #{$id}: " . $e->getMessage();
+                Log::error("RECONCILIAÇÃO FALHA: Filho #{$id}", ['error' => $e->getMessage()]);
             }
+
         }
-    });
+  
 
     return response()->json($report);
 });
