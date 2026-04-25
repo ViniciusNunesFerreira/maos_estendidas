@@ -343,9 +343,7 @@ Route::prefix('v1')->group(function () {
         // TOTEM DE AUTOATENDIMENTO (ability:totem:*)
         // =====================================================
         
-        Route::prefix('totem')
-            ->middleware('ability:totem:*')
-            ->group(function () {
+        Route::prefix('totem')->group(function () {
             
             // Login específico do totem (CPF + Senha)
             Route::post('login-cpf', [AuthController::class, 'loginByCpf'])
