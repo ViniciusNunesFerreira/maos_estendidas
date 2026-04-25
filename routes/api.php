@@ -365,6 +365,10 @@ Route::prefix('v1')->group(function () {
                 Route::get('/{order}/status', [TotemOrderController::class, 'status']);
                 Route::post('/{order}/cancel', [TotemOrderController::class, 'cancel']);
             });
+
+            Route::prefix('cash')->group(function () {
+                Route::get('/status', [PDVCashSessionController::class, 'status']);
+            });
             
             // Pagamento
             Route::post('/payments/process', [TotemPaymentController::class, 'process']);
