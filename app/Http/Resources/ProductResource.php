@@ -25,9 +25,6 @@ class ProductResource extends JsonResource
                 'stock_quantity' => $this->stock_quantity,
                 'min_stock_alert' => $this->min_stock_alert,
                 'track_stock' => $this->track_stock,
-                'is_low_stock' => $this->is_low_stock, // Atributo computado
-                'stock_severity' => $this->getStockSeverity(), // Método de negócio
-                'stock_color' => $this->getStockColor(),
             ],
             'settings' => [
                 'type' => $this->type, // loja ou cantina

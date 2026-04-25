@@ -20,28 +20,36 @@ class MenuController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Product::query()
-            ->where('location', 'cantina') // Apenas produtos da cantina
+            ->where('type', ['cantina']) // Apenas produtos da cantina
             ->where('is_active', true)
-            ->where('stock', '>', 0)
-            ->with(['category']);
+            ->where('available_pdv', true)
+            ->where('stock_quantity', '>', 0)
+            ->with(['category:id,name,slug,icon,color']);
+
 
         // Filtro por categoria
-        if ($request->has('category_id')) {
+        if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
 
-        // Busca por nome ou código de barras
-        if ($request->has('search')) {
+
+        // Busca por nome, SKU ou código de barras
+        if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%')
+                $q->where('name', 'ilike', "%{$search}%")
+                  ->orWhere('sku', 'ilike', "%{$search}%")
                   ->orWhere('barcode', $search);
             });
         }
 
-        // Ordenação (destaque primeiro, depois por nome)
-        $query->orderByDesc('is_featured')
-              ->orderBy('name');
+        // Ordenação
+        $sortBy = $request->input('sort_by', 'name');
+        $sortDirection = $request->input('sort_direction', 'asc');
+        
+        if (in_array($sortBy, ['name', 'price', 'created_at'])) {
+            $query->orderBy($sortBy, $sortDirection);
+        }
 
         // Paginação
         $perPage = min($request->input('per_page', 30), 100);
