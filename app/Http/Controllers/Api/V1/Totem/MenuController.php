@@ -20,9 +20,9 @@ class MenuController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Product::query()
-            ->where('type', ['cantina']) // Apenas produtos da cantina
+            ->where('type', 'cantina') // Apenas produtos da cantina
             ->where('is_active', true)
-            ->where('available_pdv', true)
+            ->where('available_totem', true)
             ->where('stock_quantity', '>', 0)
             ->with(['category:id,name,slug,icon,color']);
 
@@ -57,7 +57,7 @@ class MenuController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => ProductResource::collection($products),
+            'data' => ProductResource::collection($products->getCollection()),
             'pagination' => [
                 'current_page' => $products->currentPage(),
                 'total' => $products->total(),
@@ -77,15 +77,15 @@ class MenuController extends Controller
         $categories = Category::query()
             ->where('is_active', true)
             ->whereHas('products', function ($query) {
-                $query->where('location', 'cantina')
+                $query->where('type', 'cantina')
                     ->where('is_active', true)
-                    ->where('stock', '>', 0);
+                    ->where('stock_quantity', '>', 0);
             })
             ->withCount([
                 'products as available_products_count' => function ($query) {
-                    $query->where('location', 'cantina')
+                    $query->where('type', 'cantina')
                         ->where('is_active', true)
-                        ->where('stock', '>', 0);
+                        ->where('stock_quantity', '>', 0);
                 }
             ])
             ->orderBy('name')
@@ -105,7 +105,7 @@ class MenuController extends Controller
     public function show(Product $product): JsonResponse
     {
         // Verificar se o produto é da cantina
-        if ($product->location !== 'cantina') {
+        if ($product->type !== 'cantina') {
             return response()->json([
                 'success' => false,
                 'message' => 'Produto não disponível no totem',
@@ -113,7 +113,7 @@ class MenuController extends Controller
         }
 
         // Verificar disponibilidade
-        if (!$product->is_active || $product->stock <= 0) {
+        if (!$product->is_active || $product->stock_quantity <= 0) {
             return response()->json([
                 'success' => false,
                 'message' => 'Produto indisponível no momento',
