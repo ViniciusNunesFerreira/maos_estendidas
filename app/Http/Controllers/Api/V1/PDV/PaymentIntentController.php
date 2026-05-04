@@ -15,10 +15,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Controller para gerenciar Payment Intents no PDV e Totem Kiosk
- * Endpoints: Criar PIX, Acionar TEF, Consultar Status, Cancelar
- */
 class PaymentIntentController extends Controller
 {
     public function __construct(
@@ -33,12 +29,10 @@ class PaymentIntentController extends Controller
             $paymentMethod = $request->input('payment_method');
             $deviceId = $request->input('device_id');
 
-            // Proteção inicial
             if ($order->status === 'paid') {
                 throw new PaymentException('Este pedido já foi pago.', 400);
             }
 
-            // 1. Mapeamento do Dispositivo e Cenário
             $device = Device::where('internal_id', $deviceId)->first();
             $isKiosk = $device && $device->type === 'kiosk';
             
@@ -47,17 +41,34 @@ class PaymentIntentController extends Controller
                                 && $device->tef_provider === 'mercadopago' 
                                 && !empty($device->tef_device_id);
 
-            // Bloqueia se um Kiosk tentar pagar no cartão sem ter TEF configurado (Evita falsos positivos)
             if ($isKiosk && in_array($paymentMethod, ['credit_card', 'debit_card']) && !$isTefIntegration) {
-                throw new PaymentException('O terminal de cartão não está configurado ou está offline neste totem.', 400);
+                throw new PaymentException('O terminal de cartão não está configurado neste totem.', 400);
             }
 
             // =================================================================================
-            // BIFURCAÇÃO SEGURA: ISOLAMENTO DO KIOSK TEF vs PDV MANUAL
+            // BIFURCAÇÃO SEGURA E GARBAGE COLLECTION FÍSICO
             // =================================================================================
-            
             if ($isTefIntegration) {
-                // FLUXO TEF: Criamos manualmente para BYPASSAR a auto-aprovação do PDV legado
+                
+                // 1. LIMPEZA DA MÁQUINA: Antes de enviar uma nova cobrança, matamos qualquer
+                // transação abandonada que possa estar travando a tela física da Point Smart 2.
+                $ghostIntents = PaymentIntent::where('tef_device_id', $device->tef_device_id)
+                    ->where('integration_type', 'point_tef')
+                    ->whereIn('status', ['created', 'pending', 'processing'])
+                    ->get();
+
+                foreach ($ghostIntents as $ghost) {
+                    if ($ghost->mp_payment_intent_id) {
+                        try {
+                            $this->mercadoPagoTefService->cancelIntent($device->tef_device_id, $ghost->mp_payment_intent_id);
+                        } catch (\Exception $e) {
+                            Log::warning("Falha ao abortar ghost intent {$ghost->mp_payment_intent_id}");
+                        }
+                    }
+                    $ghost->markAsCancelled('Cancelado automaticamente (Sobreposição de transação).');
+                }
+
+                // 2. CRIAR A NOVA TRANSAÇÃO
                 $intent = PaymentIntent::create([
                     'order_id' => $order->id,
                     'payment_method' => $paymentMethod,
@@ -68,48 +79,33 @@ class PaymentIntentController extends Controller
                 ]);
 
                 try {
-                    // Dispara a maquininha física
                     $mpIntentId = $this->mercadoPagoTefService->createIntent(
                         $device->tef_device_id, 
                         $intent->amount, 
                         $paymentMethod
                     );
-
                     $intent->update(['mp_payment_intent_id' => $mpIntentId]);
-
                 } catch (\Exception $tefException) {
                     $intent->markAsError($tefException->getMessage());
                     throw new PaymentException($tefException->getMessage(), 400);
                 }
 
-                Log::info('Kiosk - Payment Intent TEF criado', ['intent_id' => $intent->id, 'device' => $deviceId]);
+                Log::info('Kiosk - Payment Intent TEF criado', ['intent_id' => $intent->id]);
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Instruções enviadas para a maquininha. Aguardando cliente...',
+                    'message' => 'Instruções enviadas para a maquininha.',
                     'data' => new PaymentIntentResource($intent),
                 ], 201);
             }
 
-            // =================================================================================
-            // FLUXO ORIGINAL: PDV Manual, Maquininhas de Tijolinho e PIX 
-            // =================================================================================
-            
+            // Fluxo Original PDV Manual
             $intent = $this->paymentIntentService->createIntent($order, $request->validated());
-
-            Log::info('PDV - Payment Intent criado', ['intent_id' => $intent->id, 'method' => $paymentMethod]);
-
-            return response()->json([
-                'success' => true,
-                'message' => $this->getSuccessMessage($intent),
-                'data' => new PaymentIntentResource($intent),
-            ], 201);
+            return response()->json(['success' => true, 'message' => $this->getSuccessMessage($intent), 'data' => new PaymentIntentResource($intent)], 201);
 
         } catch (PaymentException $e) {
-            Log::error('PDV - Erro ao criar Payment Intent', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => $e->getMessage(), 'error_code' => 'PAYMENT_INTENT_ERROR'], $e->getCode() ?: 400);
         } catch (\Exception $e) {
-            Log::error('PDV - Erro inesperado', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json(['success' => false, 'message' => 'Erro interno ao processar.', 'error_code' => 'UNEXPECTED_ERROR'], 500);
         }
     }
@@ -120,28 +116,11 @@ class PaymentIntentController extends Controller
             if ($intent->is_pix && $intent->is_pending) {
                 $intent = $this->paymentIntentService->checkIntentStatus($intent);
             } elseif ($intent->is_card && $intent->is_pending && $intent->integration_type === 'point_tef') {
-                // Polling nativo para a Maquininha TEF
                 $intent = $this->syncTefStatus($intent);
             }
-
-            return response()->json([
-                'success' => true,
-                'data' => new PaymentIntentResource($intent),
-            ]);
-
-        } catch (PaymentException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_code' => 'CHECK_STATUS_ERROR',
-            ], $e->getCode());
+            return response()->json(['success' => true, 'data' => new PaymentIntentResource($intent)]);
         } catch (\Exception $e) {
-            Log::error('PDV - Erro ao consultar status', ['intent_id' => $intent->id, 'error' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao verificar status do pagamento.',
-                'error_code' => 'UNEXPECTED_ERROR',
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Erro ao verificar status.'], 500);
         }
     }
 
@@ -153,19 +132,9 @@ class PaymentIntentController extends Controller
             } else {
                 $intent = $this->paymentIntentService->checkIntentStatus($intent);
             }
-
-            return response()->json([
-                'success' => true,
-                'data' => new PaymentIntentResource($intent),
-                'message' => $intent->getStatusMessage(),
-            ]);
-
+            return response()->json(['success' => true, 'data' => new PaymentIntentResource($intent), 'message' => $intent->getStatusMessage()]);
         } catch (\Exception $e) {
-            Log::error('PDV - Erro ao forçar verificação de status', ['intent_id' => $intent->id, 'error' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao verificar status.',
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Erro ao verificar status.'], 500);
         }
     }
 
@@ -174,71 +143,50 @@ class PaymentIntentController extends Controller
         try {
             $reason = $request->input('reason', 'Cancelado pelo operador/cliente');
 
-            // 1. Se for TEF do MP, aborta na máquina física primeiro para liberar a tela
             if ($intent->is_pending && $intent->integration_type === 'point_tef' && $intent->mp_payment_intent_id && $intent->tef_device_id) {
                 try {
                     $this->mercadoPagoTefService->cancelIntent($intent->tef_device_id, $intent->mp_payment_intent_id);
                 } catch (\Exception $e) {
-                    Log::warning("Não foi possível cancelar o intent {$intent->mp_payment_intent_id} fisicamente na maquininha.", ['error' => $e->getMessage()]);
+                    Log::warning("TEF: Falha ao abortar terminal {$intent->tef_device_id}.");
                 }
             }
 
-            // 2. Continua com o fluxo padrão de cancelamento local
-            $intent = $this->paymentIntentService->cancelIntent($intent, $reason);
+            // CORREÇÃO: O Service nativo não sabe lidar com TEF, então nós mesmos o encerramos
+            if ($intent->integration_type === 'point_tef') {
+                $intent->markAsCancelled($reason);
+                if ($intent->order && $intent->order->status === 'pending') {
+                     $intent->order->update(['status' => 'cancelled']);
+                }
+            } else {
+                $intent = $this->paymentIntentService->cancelIntent($intent, $reason);
+            }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Pagamento cancelado com sucesso.',
-                'data' => new PaymentIntentResource($intent),
-            ]);
-
+            return response()->json(['success' => true, 'message' => 'Pagamento cancelado com sucesso.', 'data' => new PaymentIntentResource($intent)]);
         } catch (\Exception $e) {
-            Log::error('PDV - Erro ao cancelar Payment Intent', ['intent_id' => $intent->id, 'error' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Erro ao cancelar pagamento.',
-                'error_code' => 'UNEXPECTED_ERROR',
-            ], 500);
+            return response()->json(['success' => false, 'message' => 'Erro ao cancelar pagamento.'], 500);
         }
     }
 
-    /**
-     * Sincroniza o status físico da maquininha com o banco de dados e notifica via WebSocket.
-     */
     private function syncTefStatus(PaymentIntent $intent): PaymentIntent
     {
-        if (!$intent->is_pending || !$intent->mp_payment_intent_id) {
-            return $intent;
-        }
+        if (!$intent->is_pending || !$intent->mp_payment_intent_id) return $intent;
 
         try {
             $mpStatus = $this->mercadoPagoTefService->getPaymentIntentStatus($intent->mp_payment_intent_id);
-
             if ($mpStatus === 'FINISHED') {
                 $intent->markAsApproved();
-                if ($intent->order) {
-                    $intent->order->update(['status' => 'paid']);
-                }
+                if ($intent->order) $intent->order->update(['status' => 'paid']);
                 $this->broadcastUpdate($intent);
-
             } elseif (in_array($mpStatus, ['CANCELED', 'ERROR', 'REJECTED'])) {
-                $intent->markAsRejected('Cancelado ou recusado no terminal físico.');
+                $intent->markAsRejected('Cancelado ou recusado na maquininha.');
                 $this->broadcastUpdate($intent);
             }
-        } catch (\Exception $e) {
-            Log::error('Erro ao sincronizar status TEF MP', ['intent' => $intent->id, 'error' => $e->getMessage()]);
-        }
-
+        } catch (\Exception $e) {}
         return $intent->fresh();
     }
 
-    /**
-     * Dispara notificação WebSocket (Reverb) para a tela do Totem atualizar instantaneamente.
-     */
     private function broadcastUpdate(PaymentIntent $intent): void
     {
-        // Usa a classe genérica de Broadcast de Pagamento se existir no seu ecossistema, 
-        // ou adapte para a classe exata que o seu Reverb escuta.
         if (class_exists(\App\Events\PaymentStatusUpdated::class)) {
             broadcast(new \App\Events\PaymentStatusUpdated($intent));
         }
@@ -246,14 +194,8 @@ class PaymentIntentController extends Controller
 
     protected function getSuccessMessage(PaymentIntent $intent): string
     {
-        if ($intent->is_pix) {
-            return 'QR Code PIX gerado com sucesso. Aguardando pagamento...';
-        }
-
-        if ($intent->is_card && $intent->integration_type === 'point_tef') {
-            return 'Instruções enviadas para a maquininha. Aguardando cliente...';
-        }
-
+        if ($intent->is_pix) return 'QR Code PIX gerado com sucesso. Aguardando pagamento...';
+        if ($intent->is_card) return 'Pagamento registrado com sucesso!';
         return 'Payment Intent criado com sucesso.';
     }
 }
