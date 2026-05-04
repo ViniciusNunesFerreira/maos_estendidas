@@ -309,33 +309,7 @@ Route::prefix('v1')->group(function () {
                 Route::post('/close', [PDVCashSessionController::class, 'close']);
             });
 
-            Route::prefix('getnet')->name('pdv.getnet.')->group(function () {
-
-                // Criar pagamento no terminal
-                Route::post('payments', [GetnetPaymentController::class, 'create'])
-                    ->name('payments.create');
-                
-                // Listar transações
-                Route::get('transactions', [GetnetPaymentController::class, 'index'])
-                    ->name('transactions.index');
-                
-                // Ver transação específica
-                Route::get('transactions/{transaction}', [GetnetPaymentController::class, 'show'])
-                    ->name('transactions.show');
-                
-                // Consultar status atualizado (polling fallback)
-                Route::post('transactions/{transaction}/check-status', [GetnetPaymentController::class, 'checkStatus'])
-                    ->name('transactions.check-status');
-                
-                // Cancelar transação
-                Route::post('transactions/{transaction}/cancel', [GetnetPaymentController::class, 'cancel'])
-                    ->name('transactions.cancel');
-                
-                // Listar terminais disponíveis
-                Route::get('terminals', [GetnetPaymentController::class, 'terminals'])
-                    ->name('terminals.index');
-
-            });
+            
 
         });
 
