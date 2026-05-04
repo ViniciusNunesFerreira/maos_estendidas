@@ -33,71 +33,42 @@ class PaymentIntentController extends Controller
             $paymentMethod = $request->input('payment_method');
             $deviceId = $request->input('device_id');
 
-            // Proteção inicial
-            if ($order->status === 'paid') {
-                throw new PaymentException('Este pedido já foi pago.', 400);
-            }
+            // 1. Criar payment intent no banco via service existente (Segurança Mágna mantida)
+            $intent = $this->paymentIntentService->createIntent($order, $request->validated());
 
-            // 1. Mapeamento do Dispositivo e Cenário
+            // 2. BUSCA DO DISPOSITIVO (Unificado)
             $device = Device::where('internal_id', $deviceId)->first();
-            $isKiosk = $device && $device->type === 'kiosk';
-            
-            $isTefIntegration = in_array($paymentMethod, ['credit_card', 'debit_card']) 
-                                && $device 
-                                && $device->tef_provider === 'mercadopago' 
-                                && !empty($device->tef_device_id);
 
-            // Bloqueia se um Kiosk tentar pagar no cartão sem ter TEF configurado (Evita falsos positivos)
-            if ($isKiosk && in_array($paymentMethod, ['credit_card', 'debit_card']) && !$isTefIntegration) {
-                throw new PaymentException('O terminal de cartão não está configurado ou está offline neste totem.', 400);
-            }
-
-            // =================================================================================
-            // BIFURCAÇÃO SEGURA: ISOLAMENTO DO KIOSK TEF vs PDV MANUAL
-            // =================================================================================
-            
-            if ($isTefIntegration) {
-                // FLUXO TEF: Criamos manualmente para BYPASSAR a auto-aprovação do PDV legado
-                $intent = PaymentIntent::create([
-                    'order_id' => $order->id,
-                    'payment_method' => $paymentMethod,
-                    'amount' => $request->input('amount'),
-                    'status' => 'pending',
-                    'integration_type' => 'point_tef',
-                    'tef_device_id' => $device->tef_device_id
-                ]);
-
+            // 3. FLUXO KIOSK TEF: Se for Cartão e tiver Maquininha MP vinculada
+            if (in_array($paymentMethod, ['credit_card', 'debit_card']) && $device && $device->tef_provider === 'mercadopago' && $device->tef_device_id) {
                 try {
-                    // Dispara a maquininha física
+                    // Aciona a maquininha física
                     $mpIntentId = $this->mercadoPagoTefService->createIntent(
                         $device->tef_device_id, 
-                        $intent->amount, 
+                        $request->input('amount'), 
                         $paymentMethod
                     );
 
-                    $intent->update(['mp_payment_intent_id' => $mpIntentId]);
+                    // Atualiza o Intent no banco amarrando ao TEF
+                    $intent->update([
+                        'mp_payment_intent_id' => $mpIntentId,
+                        'integration_type' => 'point_tef',
+                        'tef_device_id' => $device->tef_device_id
+                    ]);
 
                 } catch (\Exception $tefException) {
+                    // Trata falha crítica (maquininha desligada/offline) na hora
                     $intent->markAsError($tefException->getMessage());
                     throw new PaymentException($tefException->getMessage(), 400);
                 }
-
-                Log::info('Kiosk - Payment Intent TEF criado', ['intent_id' => $intent->id, 'device' => $deviceId]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Instruções enviadas para a maquininha. Aguardando cliente...',
-                    'data' => new PaymentIntentResource($intent),
-                ], 201);
             }
 
-            // =================================================================================
-            // FLUXO ORIGINAL: PDV Manual, Maquininhas de Tijolinho e PIX 
-            // =================================================================================
-            
-            $intent = $this->paymentIntentService->createIntent($order, $request->validated());
-
-            Log::info('PDV - Payment Intent criado', ['intent_id' => $intent->id, 'method' => $paymentMethod]);
+            Log::info('PDV - Payment Intent criado', [
+                'intent_id' => $intent->id,
+                'order_id' => $order->id,
+                'payment_method' => $paymentMethod,
+                'device_id' => $deviceId,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -106,11 +77,27 @@ class PaymentIntentController extends Controller
             ], 201);
 
         } catch (PaymentException $e) {
-            Log::error('PDV - Erro ao criar Payment Intent', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'message' => $e->getMessage(), 'error_code' => 'PAYMENT_INTENT_ERROR'], $e->getCode() ?: 400);
+            Log::error('PDV - Erro ao criar Payment Intent', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'error_code' => 'PAYMENT_INTENT_ERROR',
+            ], $e->getCode() ?: 400);
+
         } catch (\Exception $e) {
-            Log::error('PDV - Erro inesperado', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['success' => false, 'message' => 'Erro interno ao processar.', 'error_code' => 'UNEXPECTED_ERROR'], 500);
+            Log::error('PDV - Erro inesperado ao criar Payment Intent', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Erro ao processar pagamento. Tente novamente.',
+                'error_code' => 'UNEXPECTED_ERROR',
+            ], 500);
         }
     }
 
