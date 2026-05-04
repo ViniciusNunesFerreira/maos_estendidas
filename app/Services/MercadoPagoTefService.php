@@ -31,13 +31,22 @@ class MercadoPagoTefService
 
         $methodType = $paymentMethod === 'debit_card' ? 'debit_card' : 'credit_card';
 
+        // 1. Constrói a regra de pagamento dinamicamente com base no método
+        $paymentConfig = [
+            'type' => $methodType,
+        ];
+
+        // 2. Se for CRÉDITO, blindamos a máquina para não perguntar nada ao cliente
+        if ($methodType === 'credit_card') {
+            $paymentConfig['installments'] = 1; // Força 1 parcela (à vista)
+            $paymentConfig['installments_cost'] = 'seller'; // 'seller' assume o custo e pula o menu da máquina
+        }
+
+        // 3. Dispara a requisição para a maquininha
         $response = Http::withToken($token)
             ->post("https://api.mercadopago.com/point/integration-api/devices/{$tefDeviceId}/payment-intents", [
                 'amount' => (int) ($amount * 100), // MP Point Integration API exige valores em centavos
-                'payment' => [
-                    'type' => $methodType,
-                    'installments' => 1,
-                ],
+                'payment' => $paymentConfig,
                 'additional_info' => [
                     'external_reference' => uniqid('TEF_'),
                     'print_on_terminal' => true
@@ -50,11 +59,11 @@ class MercadoPagoTefService
 
         // TRATAMENTO KIOSK-FIRST: Maquininha desvinculada ou sem internet
         if ($response->status() === 404 || str_contains(strtolower($response->body()), 'offline')) {
-             Log::critical("ALERTA KIOSK: Terminal Point ID {$tefDeviceId} offline ou desvinculado.");
+             \Illuminate\Support\Facades\Log::critical("ALERTA KIOSK: Terminal Point ID {$tefDeviceId} offline ou desvinculado.");
              throw new Exception("A maquininha está desligada, sem internet ou desvinculada da conta. Por favor, utilize o PIX.");
         }
 
-        Log::error("Erro Mercado Pago TEF Create: " . $response->body());
+        \Illuminate\Support\Facades\Log::error("Erro Mercado Pago TEF Create: " . $response->body());
         throw new Exception('A operadora recusou a transação ou o serviço está instável. Tente PIX.');
     }
 
