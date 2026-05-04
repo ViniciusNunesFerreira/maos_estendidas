@@ -45,13 +45,8 @@ class PaymentIntentController extends Controller
                 throw new PaymentException('O terminal de cartão não está configurado neste totem.', 400);
             }
 
-            // =================================================================================
-            // BIFURCAÇÃO SEGURA E GARBAGE COLLECTION FÍSICO
-            // =================================================================================
             if ($isTefIntegration) {
-                
-                // 1. LIMPEZA DA MÁQUINA: Antes de enviar uma nova cobrança, matamos qualquer
-                // transação abandonada que possa estar travando a tela física da Point Smart 2.
+                // 1. GARBAGE COLLECTION FÍSICO COM TRAVA DE SEGURANÇA
                 $ghostIntents = PaymentIntent::where('tef_device_id', $device->tef_device_id)
                     ->where('integration_type', 'point_tef')
                     ->whereIn('status', ['created', 'pending', 'processing'])
@@ -62,10 +57,13 @@ class PaymentIntentController extends Controller
                         try {
                             $this->mercadoPagoTefService->cancelIntent($device->tef_device_id, $ghost->mp_payment_intent_id);
                         } catch (\Exception $e) {
+                            if ($e->getCode() === 409) {
+                                throw new PaymentException("A maquininha está ocupada com uma transação anterior. Pressione a tecla vermelha (X) nela antes de iniciar uma nova cobrança.", 400);
+                            }
                             Log::warning("Falha ao abortar ghost intent {$ghost->mp_payment_intent_id}");
                         }
                     }
-                    $ghost->markAsCancelled('Cancelado automaticamente (Sobreposição de transação).');
+                    $ghost->markAsCancelled('Cancelado automaticamente (Sobreposição).');
                 }
 
                 // 2. CRIAR A NOVA TRANSAÇÃO
@@ -147,11 +145,13 @@ class PaymentIntentController extends Controller
                 try {
                     $this->mercadoPagoTefService->cancelIntent($intent->tef_device_id, $intent->mp_payment_intent_id);
                 } catch (\Exception $e) {
-                    Log::warning("TEF: Falha ao abortar terminal {$intent->tef_device_id}.");
+                    if ($e->getCode() === 409) {
+                        return response()->json(['success' => false, 'message' => $e->getMessage()], 409);
+                    }
+                    Log::warning("TEF: Falha ao abortar terminal {$intent->tef_device_id}.", ['error' => $e->getMessage()]);
                 }
             }
 
-            // CORREÇÃO: O Service nativo não sabe lidar com TEF, então nós mesmos o encerramos
             if ($intent->integration_type === 'point_tef') {
                 $intent->markAsCancelled($reason);
                 if ($intent->order && $intent->order->status === 'pending') {
