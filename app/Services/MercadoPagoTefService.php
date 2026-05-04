@@ -89,7 +89,7 @@ class MercadoPagoTefService
 
         // O Mercado Pago retorna 409 quando a maquininha está na tela de inserção de cartão (ON_TERMINAL)
         if ($response->status() === 409) {
-            throw new \Exception("A operação já está na tela da maquininha. Pressione a tecla vermelha (X) no teclado dela para cancelar.", 409);
+            throw new \Exception("A operação está aberta na maquininha. Pressione a tecla voltar (<-) no topo da tela da maquina para cancelar.", 409);
         }
 
         // Ignoramos 404 (já cancelado/inexistente) e 400 (estado inválido para cancelamento)
