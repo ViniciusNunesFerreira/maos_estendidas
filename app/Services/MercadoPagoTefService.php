@@ -22,49 +22,53 @@ class MercadoPagoTefService
     /**
      * Aciona a maquininha Point TEF online e injeta o valor na tela.
      */
+    /**
+     * Aciona a maquininha Point TEF online e injeta o valor na tela.
+     */
     public function createIntent(string $tefDeviceId, float $amount, string $paymentMethod): ?string
     {
         $token = $this->getAccessToken();
         if (!$token) {
-            throw new Exception("Configurações do Mercado Pago não encontradas no painel.");
+            throw new \Exception("Configurações do Mercado Pago não encontradas no painel.");
         }
 
         $methodType = $paymentMethod === 'debit_card' ? 'debit_card' : 'credit_card';
 
-        // 1. Constrói a regra de pagamento dinamicamente com base no método
-        $paymentConfig = [
-            'type' => $methodType,
+        // 1. Monta o Payload Base (Agora com Description para blindar o firmware)
+        $payload = [
+            'amount' => (int) ($amount * 100), // MP exige centavos
+            'description' => 'Venda Totem Autoatendimento', // Obrigatório em alguns firmwares para aceitar a trava
+            'payment' => [
+                'type' => $methodType,
+            ],
+            'additional_info' => [
+                'external_reference' => uniqid('TEF_'),
+                'print_on_terminal' => true
+            ]
         ];
 
-        // 2. Se for CRÉDITO, blindamos a máquina para não perguntar nada ao cliente
+        // 2. Trava Absoluta para o Crédito
         if ($methodType === 'credit_card') {
-            $paymentConfig['installments'] = 1; // Força 1 parcela (à vista)
-            $paymentConfig['installments_cost'] = 'seller'; // 'seller' assume o custo e pula o menu da máquina
+            $payload['payment']['installments'] = 1; // 1 Parcela (À Vista)
+            $payload['payment']['installments_cost'] = 'buyer'; 
         }
 
-        // 3. Dispara a requisição para a maquininha
-        $response = Http::withToken($token)
-            ->post("https://api.mercadopago.com/point/integration-api/devices/{$tefDeviceId}/payment-intents", [
-                'amount' => (int) ($amount * 100), // MP Point Integration API exige valores em centavos
-                'payment' => $paymentConfig,
-                'additional_info' => [
-                    'external_reference' => uniqid('TEF_'),
-                    'print_on_terminal' => true
-                ]
-            ]);
+        // 3. Dispara a requisição
+        $response = \Illuminate\Support\Facades\Http::withToken($token)
+            ->post("https://api.mercadopago.com/point/integration-api/devices/{$tefDeviceId}/payment-intents", $payload);
 
         if ($response->successful()) {
             return $response->json('id');
         }
 
-        // TRATAMENTO KIOSK-FIRST: Maquininha desvinculada ou sem internet
+        // Tratamento de máquina offline
         if ($response->status() === 404 || str_contains(strtolower($response->body()), 'offline')) {
              \Illuminate\Support\Facades\Log::critical("ALERTA KIOSK: Terminal Point ID {$tefDeviceId} offline ou desvinculado.");
-             throw new Exception("A maquininha está desligada, sem internet ou desvinculada da conta. Por favor, utilize o PIX.");
+             throw new \Exception("A maquininha está desligada ou sem internet. Por favor, utilize o PIX.");
         }
 
         \Illuminate\Support\Facades\Log::error("Erro Mercado Pago TEF Create: " . $response->body());
-        throw new Exception('A operadora recusou a transação ou o serviço está instável. Tente PIX.');
+        throw new \Exception('A operadora recusou a transação. Tente via PIX.');
     }
 
     /**
