@@ -75,6 +75,33 @@ class FilhoController extends Controller
     }
 
     /**
+     * Busca aluno pelo CPF (Usado pelo Kiosk para Frictionless Login)
+     */
+    public function showByCpf($cpf)
+    {
+        // Limpa a máscara do CPF
+        $cleanCpf = preg_replace('/\D/', '', $cpf);
+
+        $filho = Filho::where('cpf', $cleanCpf)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$filho) {
+            return response()->json(['success' => false, 'message' => 'Cadastro não encontrado ou inativo.'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id' => $filho->id,
+                'name' => $filho->name,
+                'credit_available' => (float) $filho->credit_available,
+                'is_blocked_by_debt' => $filho->is_blocked_by_debt,
+            ]
+        ]);
+    }
+
+    /**
      * Verificar crédito disponível
      * GET /api/v1/pdv/filhos/{filho}/credit
      */

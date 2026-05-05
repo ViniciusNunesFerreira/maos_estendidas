@@ -259,6 +259,9 @@ Route::prefix('v1')->group(function () {
             Route::prefix('filhos')->group(function () {
                 Route::get('/search', [PDVFilhoController::class, 'search'])->middleware('throttle:search_api');;
                 Route::get('/{cpf}', [PDVFilhoController::class, 'getByCpf']);
+                //adicionando nova rota para atender apenas os totens de atendimento
+                Route::get('cpf/{cpf}', [PDVFilhoController::class, 'showByCpf']);
+                
                 Route::get('/{cpf}/balance', [PDVFilhoController::class, 'getBalance']);
             });
             
