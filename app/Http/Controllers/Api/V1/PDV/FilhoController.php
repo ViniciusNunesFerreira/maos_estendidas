@@ -99,7 +99,7 @@ class FilhoController extends Controller
             'success' => true,
             'data' => [
                 'id' => $filho->id,
-                'name' => $firstnamee,
+                'name' => $firstname,
                 'credit_available' => (float) $filho->credit_available,
                 'is_blocked_by_debt' => $filho->is_blocked_by_debt,
             ]
