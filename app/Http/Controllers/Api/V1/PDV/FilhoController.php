@@ -82,19 +82,24 @@ class FilhoController extends Controller
         // Limpa a máscara do CPF
         $cleanCpf = preg_replace('/\D/', '', $cpf);
 
-        $filho = Filho::where('cpf', $cleanCpf)
-            ->where('is_active', true)
-            ->first();
+        $filho = Filho::query()
+                ->select(['id','user_id', 'cpf', 'credit_limit', 'credit_used', 'is_blocked_by_debt','block_reason', 'status'])
+                ->with(['user:id,name,email'])
+                ->where('cpf', $cleanCpf)
+                ->where('status', 'active')
+                ->first();
 
         if (!$filho) {
             return response()->json(['success' => false, 'message' => 'Cadastro não encontrado ou inativo.'], 404);
         }
 
+        $firstname =  strtok(trim($filho->user->name), " ");
+
         return response()->json([
             'success' => true,
             'data' => [
                 'id' => $filho->id,
-                'name' => $filho->name,
+                'name' => $firstnamee,
                 'credit_available' => (float) $filho->credit_available,
                 'is_blocked_by_debt' => $filho->is_blocked_by_debt,
             ]
