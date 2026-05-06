@@ -18,10 +18,16 @@ class ProductController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $origem = $request->header('X-Origin') ?? 'PDV';
+
+        $tp = array('loja', 'cantina');
+
+       if( $origem == 'Totem'){$tp = 'cantina'};
+
         $query = Product::query()
             ->where('is_active', true)
             ->where('available_pdv', true)
-            ->whereIn('type', ['loja', 'cantina'])
+            ->whereIn('type', $tp)
             ->with(['category:id,name,slug,icon,color']);
 
         if ($request->filled('type')) {
@@ -98,7 +104,7 @@ class ProductController extends Controller
     {
         $product = Product::where('barcode', $barcode)
             ->where('is_active', true)
-            ->whereIn('location', ['loja', 'ambos'])
+            ->whereIn('type', ['loja', 'cantina'])
             ->with(['category:id,name,icon,color'])
             ->first();
 
@@ -147,7 +153,7 @@ class ProductController extends Controller
     {
         $product = Product::where('sku', $sku)
             ->where('is_active', true)
-            ->whereIn('location', ['loja', 'ambos'])
+            ->whereIn('type', ['loja', 'cantina'])
             ->with(['category:id,name,icon,color'])
             ->first();
 
@@ -182,12 +188,16 @@ class ProductController extends Controller
      */
     public function categories(): JsonResponse
     {
+        $origem = $request->header('X-Origin') ?? 'PDV';
+        $tp = array('loja', 'cantina');
+        if( $origem == 'Totem'){$tp = 'cantina'};
+
         $categories = Category::query()
             ->where('is_active', true)
             ->where('type', 'product')
             ->withCount(['products' => function ($q) {
                 $q->where('is_active', true)
-                  ->whereIn('type', ['loja', 'cantina'])
+                  ->whereIn('type', $tp)
                   ->where('stock_quantity', '>', 0);
             }])
             ->orderBy('order')
