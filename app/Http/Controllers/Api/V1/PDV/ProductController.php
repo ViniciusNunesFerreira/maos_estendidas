@@ -186,7 +186,7 @@ class ProductController extends Controller
      * Listar categorias para o PDV
      * GET /api/v1/pdv/categories
      */
-    public function categories(): JsonResponse
+    public function categories(Request $request): JsonResponse
     {
         $origem = $request->header('X-Origin') ?? 'PDV';
         $tp = ['loja', 'cantina'];
