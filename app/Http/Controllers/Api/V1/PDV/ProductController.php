@@ -20,7 +20,7 @@ class ProductController extends Controller
     {
         $origem = $request->header('X-Origin') ?? 'PDV';
 
-        $tp = array('loja', 'cantina');
+        $tp = ['loja', 'cantina'];
 
        if($origem == 'Totem'){ $tp = 'cantina'; };
 
@@ -189,7 +189,7 @@ class ProductController extends Controller
     public function categories(): JsonResponse
     {
         $origem = $request->header('X-Origin') ?? 'PDV';
-        $tp = array('loja', 'cantina');
+        $tp = ['loja', 'cantina'];
         if( $origem == 'Totem'){ $tp = 'cantina'; };
 
         $categories = Category::query()
