@@ -22,7 +22,7 @@ class ProductController extends Controller
 
         $tp = ['loja', 'cantina'];
 
-       if($origem == 'Totem'){ $tp = 'cantina'; };
+       if($origem == 'Totem'){ $tp = ['cantina']; };
 
         $query = Product::query()
             ->where('is_active', true)
@@ -190,7 +190,7 @@ class ProductController extends Controller
     {
         $origem = $request->header('X-Origin') ?? 'PDV';
         $tp = ['loja', 'cantina'];
-        if( $origem == 'Totem'){ $tp = 'cantina'; };
+        if( $origem == 'Totem'){ $tp = ['cantina']; };
 
         $categories = Category::query()
             ->where('is_active', true)
