@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\V1\PDV\PaymentController as PDVPaymentController;
 use App\Http\Controllers\Api\V1\PDV\SyncController as PDVSyncController;
 use App\Http\Controllers\Api\V1\PDV\CashSessionController as PDVCashSessionController;
 use App\Http\Controllers\Api\V1\PDV\TotemConfigController as PDVTotemConfigController ;
+use App\Http\Controllers\Api\V1\PDV\PaymentIntentController as PDVPaymentIntentController ;
+
 
 
 use App\Http\Controllers\Api\V1\Totem\MenuController as TotemMenuController;
