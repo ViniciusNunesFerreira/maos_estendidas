@@ -22,7 +22,8 @@ use App\Http\Controllers\Api\V1\PDV\OrderController as PDVOrderController;
 use App\Http\Controllers\Api\V1\PDV\PaymentController as PDVPaymentController;
 use App\Http\Controllers\Api\V1\PDV\SyncController as PDVSyncController;
 use App\Http\Controllers\Api\V1\PDV\CashSessionController as PDVCashSessionController;
-use App\Http\Controllers\Api\V1\PDV\PaymentIntentController as PDVPaymentIntentController;
+use App\Http\Controllers\Api\V1\PDV\TotemConfigController as PDVTotemConfigController ;
+
 
 use App\Http\Controllers\Api\V1\Totem\MenuController as TotemMenuController;
 use App\Http\Controllers\Api\V1\Totem\OrderController as TotemOrderController;
@@ -312,7 +313,9 @@ Route::prefix('v1')->group(function () {
                 Route::post('/close', [PDVCashSessionController::class, 'close']);
             });
 
-            
+            Route::prefix('totem')->group(function(){
+                Route::get('/config', [PDVTotemConfigController::class, 'getConfig']);
+            });            
 
         });
 

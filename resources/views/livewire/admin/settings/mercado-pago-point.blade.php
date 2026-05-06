@@ -30,6 +30,7 @@
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Identificação (Tablet/App)</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pareamento TEF (Maquininha)</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Rede / IP</th>
+                        <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Impressoras / IP</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Ações</th>
                     </tr>
@@ -57,6 +58,12 @@
                                     Ping: {{ $device->last_ping_at ? $device->last_ping_at->diffForHumans() : 'Nunca' }}
                                 </div>
                             </td>
+
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-gray-900 dark:text-gray-300  font-mono">{{ $device->printer_client_ip ?? '--' }}</div>
+                                <div class="text-sm text-gray-900 dark:text-gray-300 font-mono">{{ $device->printer_kitchen_ip ?? '--' }}</div>
+                            </td>
+
                             <td class="px-6 py-4">
                                 <button wire:click="toggleStatus('{{ $device->id }}')" class="relative inline-flex items-center cursor-pointer transition-colors focus:outline-none">
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $device->is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
@@ -192,6 +199,19 @@
                                             @error('tef_device_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                         </div>
                                     @endif
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IP de Impressora Principal (Opcional)</label>
+                                    <input type="text" wire:model="printer_client_ip" placeholder="192.168.1.51" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono">
+                                    @error('printer_client_ip') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">IP de Impressora Secundaria (Opcional)</label>
+                                    <input type="text" wire:model="printer_kitchen_ip" placeholder="192.168.1.52" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono">
+                                    @error('printer_kitchen_ip') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
                             </div>
 

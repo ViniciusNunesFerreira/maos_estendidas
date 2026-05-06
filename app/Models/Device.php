@@ -22,6 +22,8 @@ class Device extends Model
         'last_ping_at',
         'is_active',
         'notes',
+        'printer_client_ip',
+        'printer_kitchen_ip'
     ];
 
     protected $casts = [

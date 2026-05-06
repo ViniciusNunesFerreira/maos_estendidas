@@ -26,6 +26,8 @@ class MercadoPagoPoint extends Component
     public $tef_provider = 'mercadopago';
     public $tef_device_id;
     public $ip_address;
+    public $printer_client_ip;
+    public $printer_kitchen_ip;
     public $notes;
     public $is_active = true;
 
@@ -54,6 +56,8 @@ class MercadoPagoPoint extends Component
             'tef_provider' => 'nullable|string|in:mercadopago,getnet,stone',
             'tef_device_id' => 'nullable|string|max:150',
             'ip_address' => 'nullable|ip',
+            'printer_client_ip' => 'nullable|ip',
+            'printer_kitchen_ip' => 'nullable|ip',
             'is_active' => 'boolean',
             'notes' => 'nullable|string|max:500',
         ];
@@ -82,6 +86,8 @@ class MercadoPagoPoint extends Component
         $this->tef_provider = 'mercadopago';
         $this->tef_device_id = '';
         $this->ip_address = '';
+        $this->printer_client_ip = '';
+        $this->printer_kitchen_ip = '';
         $this->notes = '';
         $this->is_active = true;
         $this->mpDevices = [];
@@ -100,6 +106,8 @@ class MercadoPagoPoint extends Component
         $this->tef_provider = $device->tef_provider;
         $this->tef_device_id = $device->tef_device_id;
         $this->ip_address = $device->ip_address;
+        $this->printer_client_ip = $device->printer_client_ip;
+        $this->printer_kitchen_ip = $device->printer_kitchen_ip;
         $this->notes = $device->notes;
         $this->is_active = $device->is_active;
 
@@ -134,6 +142,8 @@ class MercadoPagoPoint extends Component
                 'tef_provider' => empty($this->tef_provider) ? null : $this->tef_provider,
                 'tef_device_id' => empty($this->tef_device_id) ? null : $this->tef_device_id,
                 'ip_address' => empty($this->ip_address) ? null : $this->ip_address,
+                'printer_client_ip' => empty($this->printer_client_ip) ? null : $this->printer_client_ip,
+                'printer_kitchen_ip' => empty($this->printer_kitchen_ip) ? null : $this->printer_kitchen_ip,
                 'notes' => empty($this->notes) ? null : $this->notes,
                 'is_active' => $this->is_active,
             ]
