@@ -195,6 +195,11 @@ class ProductController extends Controller
         $categories = Category::query()
             ->where('is_active', true)
             ->where('type', 'product')
+            ->whereHas('products', function ($query) use ($tp) {
+                $query->where('type', $tp)
+                    ->where('is_active', true)
+                    ->where('stock_quantity', '>', 0);
+            })
             ->withCount(['products' => function ($q) use ($tp) {
                 $q->where('is_active', true)
                   ->whereIn('type', $tp)
