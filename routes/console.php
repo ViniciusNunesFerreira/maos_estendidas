@@ -52,11 +52,18 @@ Schedule::command('app:generate-monthly-invoices')
 ->appendOutputTo(storage_path('logs/billing_invoices_mensal.log'))
 ->onOneServer();
 
+Schedule::command('db:maintenance --days=15')
+  ->dailyAt('03:30') // Madrugada, momento de baixo tráfego
+  ->name('database-maintenance-cleanup')
+  ->withoutOverlapping()
+  ->appendOutputTo(storage_path('logs/db_maintenance.log'))
+  ->onOneServer();
+/*
 Schedule::command('billing:send-invoice-reminders')
   ->dailyAt('22:00') 
   ->name('send-invoice-reminders')
   ->withoutOverlapping()
-  ->onOneServer();
+  ->onOneServer(); */
 
 /*
 Schedule::call(function () {

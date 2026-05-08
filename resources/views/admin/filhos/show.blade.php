@@ -34,6 +34,8 @@
                     <x-icon name="pencil" class="h-5 w-5 mr-2" />
                     Editar
                 </x-button>
+
+                <livewire:admin.filhos.delete-filho :filho="$filho" />
                 
                 @if($filho->status === 'active')
                     <x-button 

@@ -26,20 +26,7 @@ use Illuminate\Support\Facades\Log;
  */
 class CreditRestorationService
 {
-    /**
-     * Restaurar crédito após pagamento de fatura
-     * 
-     * FLUXO:
-     * 1. Validar tipo de fatura (consumption)
-     * 2. Validar se está totalmente paga
-     * 3. Zerar credit_used do filho
-     * 4. Desbloquear se estava bloqueado
-     * 5. Registrar transaction de crédito
-     * 
-     * @param Filho $filho
-     * @param Invoice $invoice
-     * @return void
-     */
+    
     public function restoreCredit(Filho $filho, Invoice $invoice): void
     {
         // ========== VALIDAÇÕES ==========
@@ -76,22 +63,21 @@ class CreditRestorationService
         
         // ========== PROCESSAR RESTAURAÇÃO ==========
         
-            DB::beginTransaction();
+        DB::beginTransaction();
         try {
-
-            $filho->lockForUpdate()->refresh();
-            $filho->update( [ 'credit_used' => DB::raw("GREATEST(0, credit_used - {$invoice->total_amount})") ] );
             
-            $balanceBefore = $filho->credit_limit - $filho->credit_used;
-            $creditToRestore = $filho->credit_used;
-        
+            $lockedFilho = Filho::lockForUpdate()->find($filho->id);
+            
+            $lockedFilho->update([
+                'credit_used' => DB::raw("GREATEST(0, credit_used - {$invoice->total_amount})")
+            ]);
+            
             DB::commit();
             
             // ========== LOG DE SUCESSO ==========
-            
             Log::info('Crédito restaurado com sucesso', [
-                'filho_id' => $filho->id,
-                'filho_name' => $filho->full_name,
+                'filho_id' => $lockedFilho->id,
+                'filho_name' => $lockedFilho->full_name,
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
                 'amount_restored' => $invoice->total_amount
@@ -106,7 +92,6 @@ class CreditRestorationService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
         }
     }
     
