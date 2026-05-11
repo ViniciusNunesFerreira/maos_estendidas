@@ -68,10 +68,13 @@ class CreditRestorationService
             
             $lockedFilho = Filho::lockForUpdate()->find($filho->id);
             
-            $lockedFilho->update([
-                'credit_used' => DB::raw("GREATEST(0, credit_used - {$invoice->total_amount})")
-            ]);
+            // Calcula o novo crédito para que não fique menor que 0.
+            $newCreditUsed = max(0, $lockedFilho->credit_used - $invoice->total_amount);
             
+            $lockedFilho->update([
+                'credit_used' => $newCreditUsed
+            ]);
+
             DB::commit();
             
             // ========== LOG DE SUCESSO ==========
